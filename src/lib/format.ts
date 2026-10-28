@@ -32,3 +32,14 @@ export const SKILL_OPTIONS = [
   'AWS', 'Docker', 'Kubernetes', 'Figma', 'UI/UX', 'Product Management',
   'Machine Learning', 'Data Analysis', 'DevOps', 'Next.js',
 ];
+
+const SOURCE_LABELS: Record<string, string> = {
+  adzuna: 'Jobs by Adzuna',
+  arbeitnow: 'via Arbeitnow',
+};
+
+/** Attribution for imported listings (required by the job boards' terms); null for in-app jobs. */
+export function sourceLabel(source: string | null | undefined): string | null {
+  if (!source || source === 'jobswipe') return null;
+  return SOURCE_LABELS[source] ?? `via ${source}`;
+}

@@ -30,6 +30,19 @@ export interface Job {
   required_skills: string[];
   is_active: boolean;
   created_at: string;
+  /** 'jobswipe' for listings posted in the app, otherwise the job board it was imported from. */
+  source: string;
+  /** Imported jobs only: where the candidate applies. */
+  apply_url: string | null;
+}
+
+/** An imported job the candidate swiped right on (applied to off-platform). */
+export interface SavedJob {
+  created_at: string;
+  job: Pick<
+    Job,
+    'id' | 'title' | 'company_name' | 'company_logo' | 'location' | 'is_remote' | 'source' | 'apply_url'
+  >;
 }
 
 /** Row returned by get_recommended_jobs_for_candidate(). */

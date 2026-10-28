@@ -6,6 +6,7 @@ import type {
   Message,
   Profile,
   RecommendedJob,
+  SavedJob,
   SwipeDirection,
 } from './types';
 
@@ -62,6 +63,22 @@ export async function swipeJob(jobId: string, direction: SwipeDirection): Promis
   );
 }
 
+/** Imported jobs the candidate swiped right on; they apply on the source site. */
+export async function getSavedJobs(candidateId: string): Promise<SavedJob[]> {
+  return unwrap(
+    await supabase
+      .from('swipes')
+      .select(
+        'created_at, job:jobs!inner ( id, title, company_name, company_logo, location, is_remote, source, apply_url )',
+      )
+      .eq('candidate_id', candidateId)
+      .eq('direction', 'right')
+      .neq('job.source', 'jobswipe')
+      .order('created_at', { ascending: false })
+      .returns<SavedJob[]>(),
+  );
+}
+
 // ---------- Recruiter ----------
 
 export async function getMyJobs(recruiterId: string): Promise<Job[]> {
@@ -69,7 +86,7 @@ export async function getMyJobs(recruiterId: string): Promise<Job[]> {
     await supabase
       .from('jobs')
       .select(
-        'id, recruiter_id, title, company_name, company_logo, description, location, is_remote, salary_min, salary_max, required_skills, is_active, created_at',
+        'id, recruiter_id, title, company_name, company_logo, description, location, is_remote, salary_min, salary_max, required_skills, is_active, created_at, source, apply_url',
       )
       .eq('recruiter_id', recruiterId)
       .order('created_at', { ascending: false }),
@@ -81,7 +98,7 @@ export async function getJob(jobId: string): Promise<Job> {
     await supabase
       .from('jobs')
       .select(
-        'id, recruiter_id, title, company_name, company_logo, description, location, is_remote, salary_min, salary_max, required_skills, is_active, created_at',
+        'id, recruiter_id, title, company_name, company_logo, description, location, is_remote, salary_min, salary_max, required_skills, is_active, created_at, source, apply_url',
       )
       .eq('id', jobId)
       .single(),

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Heart, RefreshCw, X } from 'lucide-react-native';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -27,10 +27,21 @@ export default function DiscoverScreen() {
     () => getRecommendedJobs(candidateId!, BATCH_SIZE),
     [candidateId],
   );
-  const persist = useCallback(
-    (job: RecommendedJob, direction: SwipeDirection) => swipeJob(job.id, direction),
-    [],
-  );
+  // Imported jobs have no recruiter in the app, so a right swipe saves the job
+  // for applying on the original site instead of waiting for a match.
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const persist = useCallback(async (job: RecommendedJob, direction: SwipeDirection) => {
+    const matchId = await swipeJob(job.id, direction);
+    if (direction === 'right' && job.source !== 'jobswipe') {
+      setSavedNotice(`Saved ${job.title}. Apply from the Matches tab.`);
+    }
+    return matchId;
+  }, []);
+  useEffect(() => {
+    if (!savedNotice) return;
+    const t = setTimeout(() => setSavedNotice(null), 2500);
+    return () => clearTimeout(t);
+  }, [savedNotice]);
 
   const feed = useSwipeQueue({
     fetchBatch,
@@ -80,6 +91,16 @@ export default function DiscoverScreen() {
       {feed.error ? (
         <Pressable onPress={feed.clearError} className="mx-5 mb-2 rounded-xl bg-red-50 px-4 py-3">
           <Text className="text-sm text-red-700">{feed.error}</Text>
+        </Pressable>
+      ) : null}
+      {savedNotice ? (
+        <Pressable
+          onPress={() => router.push('/matches')}
+          className="mx-5 mb-2 rounded-xl bg-brand-light px-4 py-3"
+        >
+          <Text className="text-sm font-medium text-brand-dark" numberOfLines={2}>
+            {savedNotice}
+          </Text>
         </Pressable>
       ) : null}
 

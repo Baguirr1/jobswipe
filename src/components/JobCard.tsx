@@ -1,9 +1,9 @@
-import { Banknote, Building2, Globe, MapPin, RotateCw } from 'lucide-react-native';
+import { Banknote, Building2, ExternalLink, Globe, MapPin, RotateCw } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
 import { CompanyLogo, MatchBadge, Tag } from '@/components/ui';
-import { formatSalaryRange } from '@/lib/format';
+import { formatSalaryRange, sourceLabel } from '@/lib/format';
 import type { RecommendedJob } from '@/lib/types';
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
 
 export function JobCardFront({ job, mySkills = [] }: Props) {
   const mine = new Set(mySkills.map((s) => s.toLowerCase()));
+  const attribution = sourceLabel(job.source);
   return (
     <View className="flex-1 p-6">
       <View className="flex-row items-start justify-between">
@@ -26,8 +27,16 @@ export function JobCardFront({ job, mySkills = [] }: Props) {
       </Text>
       <View className="mt-2 flex-row items-center">
         <Building2 size={16} color="#6B7280" />
-        <Text className="ml-1.5 text-base text-gray-600">{job.company_name}</Text>
+        <Text className="ml-1.5 flex-1 text-base text-gray-600" numberOfLines={1}>
+          {job.company_name}
+        </Text>
       </View>
+      {attribution ? (
+        <View className="mt-1 flex-row items-center">
+          <ExternalLink size={13} color="#9CA3AF" />
+          <Text className="ml-1.5 text-xs font-medium text-gray-400">{attribution}</Text>
+        </View>
+      ) : null}
 
       <View className="mt-5 flex-row items-center rounded-2xl bg-green-50 px-4 py-3">
         <Banknote size={20} color="#16A34A" />
@@ -69,6 +78,7 @@ export function JobCardFront({ job, mySkills = [] }: Props) {
 }
 
 export function JobCardBack({ job }: Props) {
+  const attribution = sourceLabel(job.source);
   return (
     <View className="flex-1 p-6">
       <View className="flex-row items-center">
@@ -95,6 +105,11 @@ export function JobCardBack({ job }: Props) {
             <Tag key={s} label={s} />
           ))}
         </View>
+        {attribution ? (
+          <Text className="pb-6 text-sm text-gray-500">
+            {attribution}. Swipe right to save it, then apply from the Matches tab.
+          </Text>
+        ) : null}
       </ScrollView>
       <Text className="pt-2 text-center text-xs text-gray-400">Tap to flip back</Text>
     </View>

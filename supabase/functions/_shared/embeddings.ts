@@ -99,6 +99,55 @@ export async function generateEmbedding(
   }
 }
 
+/**
+ * Embed several texts in one request. Falls back to one request per text if
+ * the batch call fails, so a single bad input can't sink the whole batch.
+ */
+export async function generateEmbeddings(
+  texts: string[],
+  hfToken: string,
+  { retries = 3 }: { retries?: number } = {},
+): Promise<number[][]> {
+  const inputs = texts.map((t) => t.trim());
+  if (inputs.length === 0) return [];
+  if (inputs.some((t) => !t)) throw new EmbeddingError('Cannot embed empty text', 400);
+
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(HF_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${hfToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ inputs, normalize: true, truncate: true }),
+    });
+
+    if (res.ok) {
+      const raw = (await res.json()) as unknown[];
+      if (Array.isArray(raw) && raw.length === inputs.length) {
+        return raw.map((item) => toSentenceVector(item));
+      }
+      break; // unexpected shape: fall back to single requests
+    }
+
+    if ((res.status === 503 || res.status === 429) && attempt < retries) {
+      await sleep(1000 * 2 ** attempt);
+      continue;
+    }
+    if (res.status === 401 || res.status === 403) {
+      throw new EmbeddingError(
+        `Hugging Face request failed (${res.status}): ${await res.text()}`,
+        res.status,
+      );
+    }
+    break;
+  }
+
+  const vectors: number[][] = [];
+  for (const text of inputs) vectors.push(await generateEmbedding(text, hfToken, { retries }));
+  return vectors;
+}
+
 // The API returns either a sentence vector [384] or, for some deployments,
 // token vectors [tokens][384] (optionally wrapped in a batch dimension).
 // Mean-pool token vectors, then L2-normalize so cosine distance is well-behaved.

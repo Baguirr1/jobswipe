@@ -23,6 +23,8 @@ A "Tinder for jobs" mobile app. Candidates swipe on jobs ranked by AI similarity
    - The purple **"92% Match"** badge shows how close the job is to your profile.
    - If you run out of jobs, tap **Refresh** to check for new listings.
 4. **Matches.** When a recruiter also says yes to you, you get an *It's a Match!* popup. The job then shows up in the **Matches** tab.
+
+   **Real job listings** (marked *Jobs by Adzuna* or *via Arbeitnow* on the card) come from public job boards. No recruiter on those is using JobSwipe, so swiping right **saves** the job. You'll find it under **Matches → Saved jobs**, where the **Apply** button opens the listing on the original site.
 5. **Chat.** Open a match to message the recruiter in real time.
 6. **Profile.** On the **Profile** tab, tap **Edit profile** to change your skills or resume (your matches are re-scored when you save), or tap **Sign out**.
 
@@ -69,7 +71,49 @@ Recruiter yes ──► rpc swipe_candidate┘ ───────────
    npx supabase functions deploy embed
    ```
 4. Turn off **Authentication → Sign In / Providers → Email → Confirm email**. Supabase's built-in email sender only delivers to members of your Supabase organization, so other people can't confirm their sign-ups while this is on.
-5. (Optional) Add 15 demo jobs: paste `supabase/seed.sql` into **SQL Editor → Run**. You should see `demo_jobs = 15`. Their embeddings are generated automatically the first time a job seeker opens the Discover tab.
+5. Apply `supabase/migrations/20261028000000_job_imports.sql` the same way as step 2. It adds support for imported jobs.
+6. (Optional) Add 15 demo jobs: paste `supabase/seed.sql` into **SQL Editor → Run**. You should see `demo_jobs = 15`. Their embeddings are generated automatically the first time a job seeker opens the Discover tab.
+
+### Real job listings (optional)
+
+The `import-jobs` Edge Function pulls current listings from public job APIs, scores them with the AI, and turns off listings that have been gone for 7 days.
+
+| Source | Key | What you get |
+| --- | --- | --- |
+| [Adzuna](https://developer.adzuna.com) | Free App ID + key | US (or any country) jobs, searchable by keyword and city, with salaries |
+| [Arbeitnow](https://www.arbeitnow.com/blog/job-board-api) | None | A few dozen remote, English-language jobs |
+
+1. Sign up at developer.adzuna.com and set your keys. Run this in your own terminal so the key stays private:
+   ```bash
+   npx supabase secrets set ADZUNA_APP_ID=xxxx ADZUNA_APP_KEY=xxxx
+   # optional defaults for the search:
+   npx supabase secrets set ADZUNA_WHERE="Charlotte, NC" ADZUNA_WHAT="software engineer,data analyst,ux designer"
+   ```
+2. Create the import secret and deploy the function:
+   ```bash
+   npx supabase secrets set IMPORT_SECRET=<a long random string>
+   npx supabase functions deploy import-jobs --no-verify-jwt
+   ```
+3. Run an import by hand:
+   ```bash
+   curl -X POST https://<project-ref>.supabase.co/functions/v1/import-jobs      -H "x-import-secret: <IMPORT_SECRET>" -H "content-type: application/json"      -d '{"what": ["data analyst"], "where": "Charlotte, NC"}'
+   ```
+   The body is optional. It returns how many jobs were fetched, saved, retired and embedded.
+4. Schedule it daily in **SQL Editor**:
+   ```sql
+   create extension if not exists pg_cron;
+   create extension if not exists pg_net with schema extensions;
+   select vault.create_secret('<IMPORT_SECRET>', 'import_jobs_secret');
+   select cron.schedule('import-jobs-daily', '0 10 * * *', $cron$
+     select net.http_post(
+       url := 'https://<project-ref>.supabase.co/functions/v1/import-jobs',
+       headers := jsonb_build_object('Content-Type', 'application/json',
+         'x-import-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'import_jobs_secret')),
+       body := '{}'::jsonb, timeout_milliseconds := 150000);
+   $cron$);
+   ```
+
+Remotive's public API is deliberately not used: its terms forbid showing listings behind a sign-up.
 
 ### 2. App
 
@@ -103,7 +147,9 @@ Then do one of the following:
 | Problem | Fix |
 | --- | --- |
 | Can't sign in after signing up | Turn off **Confirm email** (Setup step 4), delete the user under **Authentication → Users**, and sign up again. |
-| Discover tab is empty | No active jobs exist yet. Run `supabase/seed.sql` or post a job as a recruiter. |
+| Discover tab is empty | No active jobs exist yet. Run `supabase/seed.sql`, run an import, or post a job as a recruiter. |
+| Import returns `"adzuna skipped"` | Set the `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` secrets. |
+| Errors like *column jobs.source does not exist* | Apply the `20261028000000_job_imports.sql` migration. |
 | No "% Match" badges | Embeddings are missing. Check that the `HF_TOKEN` secret is set, then open the `embed` function logs in the Supabase dashboard. |
 | "You need to be signed in to Expo Go" | Run `npx expo login`, and sign in to the Expo Go app with the same account. |
 | Odd styling errors after config changes | Restart with `npx expo start --clear`. |
@@ -114,6 +160,8 @@ Then do one of the following:
 supabase/
   migrations/…_jobswipe_init.sql   schema, RLS, HNSW indexes, swipe + recommendation RPCs, realtime
   functions/_shared/embeddings.ts  Hugging Face embedding utility (fetch-only, runtime-agnostic)
+  functions/_shared/job-sources.ts Adzuna + Arbeitnow fetchers, HTML cleanup, skill extraction
+  functions/import-jobs/index.ts   Edge Function: daily import of real listings
   functions/embed/index.ts         Edge Function: embeds the caller's profile or job (RLS-scoped)
 src/
   app/                    Expo Router screens
