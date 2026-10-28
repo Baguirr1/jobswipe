@@ -3,14 +3,12 @@
 //   { "target": "job", "id": "<uuid>" }  -> embeds one of the caller's jobs
 //   { "target": "backfill" }             -> embeds active jobs that have no
 //                                           embedding yet (seeded jobs, or saves
-//                                           where Hugging Face failed)
+//                                           where embedding failed)
 //
 // profile/job run with the caller's JWT, so RLS guarantees users only embed rows
 // they own. backfill uses the service role but only fills NULL embeddings from
 // server-side job text, so callers can't change any data they don't own.
-// The Hugging Face token never leaves the server.
-//
-// Secrets: supabase secrets set HF_TOKEN=hf_xxx
+// Embeddings come from Supabase's built-in gte-small model; no API key needed.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
@@ -28,14 +26,11 @@ const corsHeaders = {
 
 type Body = { target: 'profile' } | { target: 'job'; id: string } | { target: 'backfill' };
 
-const BACKFILL_BATCH = 10;
+const BACKFILL_BATCH = 5;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-
-  const hfToken = Deno.env.get('HF_TOKEN');
-  if (!hfToken) return json({ error: 'HF_TOKEN secret is not configured' }, 500);
 
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) return json({ error: 'Missing Authorization header' }, 401);
@@ -65,7 +60,7 @@ Deno.serve(async (req) => {
         .single();
       if (error) return json({ error: error.message }, 404);
 
-      const embedding = await generateEmbedding(buildProfileText(profile), hfToken);
+      const embedding = await generateEmbedding(buildProfileText(profile));
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ embedding: toPgVector(embedding) })
@@ -84,7 +79,7 @@ Deno.serve(async (req) => {
         .single();
       if (error) return json({ error: 'Job not found' }, 404);
 
-      const embedding = await generateEmbedding(buildJobText(job), hfToken);
+      const embedding = await generateEmbedding(buildJobText(job));
       const { error: updateError } = await supabase
         .from('jobs')
         .update({ embedding: toPgVector(embedding) })
@@ -110,7 +105,7 @@ Deno.serve(async (req) => {
 
       let embedded = 0;
       for (const job of jobs ?? []) {
-        const embedding = await generateEmbedding(buildJobText(job), hfToken);
+        const embedding = await generateEmbedding(buildJobText(job));
         const { error: updateError } = await admin
           .from('jobs')
           .update({ embedding: toPgVector(embedding) })

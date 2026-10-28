@@ -2,7 +2,7 @@
 
 A "Tinder for jobs" mobile app. Candidates swipe on jobs ranked by AI similarity, recruiters swipe on the candidates who applied, and a mutual right-swipe opens a realtime chat.
 
-**Stack:** Expo SDK 58 (React Native 0.88, Expo Router, TypeScript) · NativeWind 4 · Reanimated 4 + Gesture Handler 3 · Supabase (Postgres, Auth, RLS, Realtime, Edge Functions) · pgvector · `sentence-transformers/all-MiniLM-L6-v2` (384-d) via Hugging Face.
+**Stack:** Expo SDK 58 (React Native 0.88, Expo Router, TypeScript) · NativeWind 4 · Reanimated 4 + Gesture Handler 3 · Supabase (Postgres, Auth, RLS, Realtime, Edge Functions) · pgvector · Supabase's built-in `gte-small` embedding model (384-d, free, no API key).
 
 ## Using the app
 
@@ -41,7 +41,7 @@ A "Tinder for jobs" mobile app. Candidates swipe on jobs ranked by AI similarity
 ## How it works
 
 ```
-Profile / job saved ──► embed Edge Function ──► Hugging Face MiniLM ──► vector(384) column
+Profile / job saved ──► embed Edge Function ──► gte-small (Supabase.ai) ──► vector(384) column
                                                                             │
 Discover tab ──► rpc get_recommended_jobs_for_candidate ──► ORDER BY embedding <=> candidate
                     (excludes swiped + inactive jobs, returns match_score_percentage)
@@ -52,7 +52,8 @@ Recruiter yes ──► rpc swipe_candidate┘ ───────────
 
 - **Optimistic swiping.** A card leaves the deck the moment the gesture finishes. The write happens in the background, and if it fails the card returns to the top with an error banner (`src/hooks/useSwipeQueue.ts`).
 - **Matches are created atomically** inside the swipe RPCs, so the client learns about a match in the same round trip and shows the popup.
-- **Match % calibration.** Raw MiniLM cosine similarity for a strong resume↔job fit is usually around 0.5–0.75. `public.match_pct()` maps the 0.10–0.75 similarity band linearly onto 0–100%. Tune those two constants once you have real data.
+- **Match % calibration.** gte-small similarities are compressed: unrelated resume/job pairs score about 0.82 and a near-perfect fit about 0.95. `public.match_pct()` maps the 0.80–0.96 band linearly onto 0–100%. Tune those two constants once you have real data.
+- **Embedding budget.** Edge Functions get about 2s of CPU per request on the free plan, so each call embeds about 5 jobs. A cron job calls `import-jobs` with `{"embed_only": true}` every minute to work through new listings.
 
 ## Setup
 
@@ -65,13 +66,12 @@ Recruiter yes ──► rpc swipe_candidate┘ ───────────
    npx supabase link --project-ref <your-ref>
    npx supabase db push
    ```
-3. Create a Hugging Face token with the **"Make calls to Inference Providers"** permission and deploy the embedding function:
+3. Deploy the embedding function. It uses Supabase's built-in `gte-small` model, so no API key is needed:
    ```bash
-   npx supabase secrets set HF_TOKEN=hf_xxx
    npx supabase functions deploy embed
    ```
 4. Turn off **Authentication → Sign In / Providers → Email → Confirm email**. Supabase's built-in email sender only delivers to members of your Supabase organization, so other people can't confirm their sign-ups while this is on.
-5. Apply `supabase/migrations/20261028000000_job_imports.sql` the same way as step 2. It adds support for imported jobs.
+5. Apply `supabase/migrations/20261028000000_job_imports.sql` and then `20261028000001_gte_small_embeddings.sql` the same way as step 2. They add imported-job support and the gte-small score scale.
 6. (Optional) Add 15 demo jobs: paste `supabase/seed.sql` into **SQL Editor → Run**. You should see `demo_jobs = 15`. Their embeddings are generated automatically the first time a job seeker opens the Discover tab.
 
 ### Real job listings (optional)
@@ -110,6 +110,14 @@ The `import-jobs` Edge Function pulls current listings from public job APIs, sco
        headers := jsonb_build_object('Content-Type', 'application/json',
          'x-import-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'import_jobs_secret')),
        body := '{}'::jsonb, timeout_milliseconds := 150000);
+   $cron$);
+   -- and score new jobs a few at a time:
+   select cron.schedule('embed-jobs-every-minute', '* * * * *', $cron$
+     select net.http_post(
+       url := 'https://<project-ref>.supabase.co/functions/v1/import-jobs',
+       headers := jsonb_build_object('Content-Type', 'application/json',
+         'x-import-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'import_jobs_secret')),
+       body := '{"embed_only": true}'::jsonb, timeout_milliseconds := 30000);
    $cron$);
    ```
 
@@ -150,7 +158,7 @@ Then do one of the following:
 | Discover tab is empty | No active jobs exist yet. Run `supabase/seed.sql`, run an import, or post a job as a recruiter. |
 | Import returns `"adzuna skipped"` | Set the `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` secrets. |
 | Errors like *column jobs.source does not exist* | Apply the `20261028000000_job_imports.sql` migration. |
-| No "% Match" badges | Embeddings are missing. Check that the `HF_TOKEN` secret is set, then open the `embed` function logs in the Supabase dashboard. |
+| No "% Match" badges | Embeddings are still being generated (about 300 jobs/hour), or the cron jobs aren't scheduled. Check `select * from cron.job` and the `embed` / `import-jobs` function logs. |
 | "You need to be signed in to Expo Go" | Run `npx expo login`, and sign in to the Expo Go app with the same account. |
 | Odd styling errors after config changes | Restart with `npx expo start --clear`. |
 
@@ -159,7 +167,7 @@ Then do one of the following:
 ```
 supabase/
   migrations/…_jobswipe_init.sql   schema, RLS, HNSW indexes, swipe + recommendation RPCs, realtime
-  functions/_shared/embeddings.ts  Hugging Face embedding utility (fetch-only, runtime-agnostic)
+  functions/_shared/embeddings.ts  gte-small embedding utility + text builders
   functions/_shared/job-sources.ts Adzuna + Arbeitnow fetchers, HTML cleanup, skill extraction
   functions/import-jobs/index.ts   Edge Function: daily import of real listings
   functions/embed/index.ts         Edge Function: embeds the caller's profile or job (RLS-scoped)

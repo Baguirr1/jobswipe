@@ -1,14 +1,14 @@
 // Embedding generation for JobSwipe.
-// Runtime-agnostic (only uses fetch), so it works in Deno Edge Functions,
-// Node scripts, or anywhere else with a global fetch.
+// Uses Supabase's built-in gte-small model (384 dims, L2-normalized), which
+// runs inside the Edge Runtime: no API key, no per-call cost.
+// Earlier versions called Hugging Face's all-MiniLM-L6-v2; vectors from the two
+// models are not comparable, so switching models means re-embedding everything.
 
-export const EMBEDDING_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
+export const EMBEDDING_MODEL = 'gte-small';
 export const EMBEDDING_DIMENSIONS = 384;
 
-const HF_ENDPOINT =
-  `https://router.huggingface.co/hf-inference/models/${EMBEDDING_MODEL}/pipeline/feature-extraction`;
-
-// MiniLM was trained on 256 word-piece tokens; ~1500 chars keeps us under it.
+// gte-small reads up to 512 tokens; ~1500 chars keeps the important parts
+// (title, skills, start of the description) and keeps inference fast.
 const MAX_INPUT_CHARS = 1500;
 
 export class EmbeddingError extends Error {
@@ -61,123 +61,42 @@ function compact(parts: (string | false | null | undefined | 0)[]): string {
   return parts.filter(Boolean).join('\n').replace(/\s+/g, ' ').trim().slice(0, MAX_INPUT_CHARS);
 }
 
-/**
- * Generate a 384-d, L2-normalized embedding via the Hugging Face Inference API.
- * Retries on 503 (model cold start) and 429 (rate limit) with backoff.
- */
-export async function generateEmbedding(
-  text: string,
-  hfToken: string,
-  { retries = 3 }: { retries?: number } = {},
-): Promise<number[]> {
+// Supabase's built-in model, run by the Edge Runtime itself: free, no API key.
+// Typed locally so this file stays importable outside the Edge Runtime.
+interface AiSession {
+  run(input: string, opts: { mean_pool: boolean; normalize: boolean }): Promise<unknown>;
+}
+let session: AiSession | null = null;
+
+function getSession(): AiSession {
+  if (!session) {
+    const ai = (globalThis as { Supabase?: { ai?: { Session: new (model: string) => AiSession } } })
+      .Supabase?.ai;
+    if (!ai) throw new EmbeddingError('Supabase.ai is only available inside Supabase Edge Functions', 500);
+    session = new ai.Session(EMBEDDING_MODEL);
+  }
+  return session;
+}
+
+/** Generate a 384-d, L2-normalized embedding with gte-small. */
+export async function generateEmbedding(text: string): Promise<number[]> {
   const input = text.trim();
   if (!input) throw new EmbeddingError('Cannot embed empty text', 400);
 
-  for (let attempt = 0; ; attempt++) {
-    const res = await fetch(HF_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${hfToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ inputs: input, normalize: true, truncate: true }),
-    });
-
-    if (res.ok) {
-      return toSentenceVector(await res.json());
-    }
-
-    if ((res.status === 503 || res.status === 429) && attempt < retries) {
-      await sleep(1000 * 2 ** attempt);
-      continue;
-    }
-
-    throw new EmbeddingError(
-      `Hugging Face request failed (${res.status}): ${await res.text()}`,
-      res.status,
-    );
+  const raw = await getSession().run(input, { mean_pool: true, normalize: true });
+  const vector = Array.from(raw as ArrayLike<number>);
+  if (vector.length !== EMBEDDING_DIMENSIONS) {
+    throw new EmbeddingError(`Expected ${EMBEDDING_DIMENSIONS} dimensions, got ${vector.length}`);
   }
+  return vector;
 }
 
-/**
- * Embed several texts in one request. Falls back to one request per text if
- * the batch call fails, so a single bad input can't sink the whole batch.
- */
-export async function generateEmbeddings(
-  texts: string[],
-  hfToken: string,
-  { retries = 3 }: { retries?: number } = {},
-): Promise<number[][]> {
-  const inputs = texts.map((t) => t.trim());
-  if (inputs.length === 0) return [];
-  if (inputs.some((t) => !t)) throw new EmbeddingError('Cannot embed empty text', 400);
-
-  for (let attempt = 0; ; attempt++) {
-    const res = await fetch(HF_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${hfToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ inputs, normalize: true, truncate: true }),
-    });
-
-    if (res.ok) {
-      const raw = (await res.json()) as unknown[];
-      if (Array.isArray(raw) && raw.length === inputs.length) {
-        return raw.map((item) => toSentenceVector(item));
-      }
-      break; // unexpected shape: fall back to single requests
-    }
-
-    if ((res.status === 503 || res.status === 429) && attempt < retries) {
-      await sleep(1000 * 2 ** attempt);
-      continue;
-    }
-    if (res.status === 401 || res.status === 403) {
-      throw new EmbeddingError(
-        `Hugging Face request failed (${res.status}): ${await res.text()}`,
-        res.status,
-      );
-    }
-    break;
-  }
-
+/** Embed several texts, one at a time (the runtime has no batch API). */
+export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   const vectors: number[][] = [];
-  for (const text of inputs) vectors.push(await generateEmbedding(text, hfToken, { retries }));
+  for (const text of texts) vectors.push(await generateEmbedding(text));
   return vectors;
 }
-
-// The API returns either a sentence vector [384] or, for some deployments,
-// token vectors [tokens][384] (optionally wrapped in a batch dimension).
-// Mean-pool token vectors, then L2-normalize so cosine distance is well-behaved.
-function toSentenceVector(raw: unknown): number[] {
-  let data = raw as number[] | number[][] | number[][][];
-  if (Array.isArray(data[0]) && Array.isArray((data as number[][][])[0][0])) {
-    data = (data as number[][][])[0];
-  }
-
-  let vector: number[];
-  if (typeof data[0] === 'number') {
-    vector = data as number[];
-  } else {
-    const tokens = data as number[][];
-    vector = new Array(tokens[0].length).fill(0);
-    for (const t of tokens) for (let i = 0; i < t.length; i++) vector[i] += t[i];
-    vector = vector.map((v) => v / tokens.length);
-  }
-
-  if (vector.length !== EMBEDDING_DIMENSIONS) {
-    throw new EmbeddingError(
-      `Expected ${EMBEDDING_DIMENSIONS} dimensions, got ${vector.length}`,
-    );
-  }
-
-  const norm = Math.hypot(...vector) || 1;
-  return vector.map((v) => v / norm);
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** pgvector accepts the JSON-ish literal "[0.1,0.2,...]". */
 export const toPgVector = (v: number[]) => `[${v.join(',')}]`;

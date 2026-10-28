@@ -1,8 +1,8 @@
 import { supabase } from './supabase';
 
-// Client-side wrapper around the `embed` Edge Function. The Hugging Face token
-// lives only on the server; the app just asks for a row to be (re)embedded
-// after the text it is built from changes.
+// Client-side wrapper around the `embed` Edge Function. Embeddings are made on
+// the server (Supabase's gte-small model); the app just asks for a row to be
+// (re)embedded after the text it is built from changes.
 
 type EmbedBody = { target: 'profile' } | { target: 'job'; id: string } | { target: 'backfill' };
 

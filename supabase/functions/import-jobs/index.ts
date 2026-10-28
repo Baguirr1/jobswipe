@@ -12,11 +12,12 @@
 //   what     search terms for Adzuna  (default: ADZUNA_WHAT secret, or DEFAULT_WHAT)
 //   where    Adzuna location filter   (default: ADZUNA_WHERE secret, or nationwide)
 //   country  Adzuna country code      (default: ADZUNA_COUNTRY secret, or "us")
+//   embed_only  true: skip fetching, just embed jobs that still need it
+//   embed_limit how many jobs to embed this run (default 5, max 8)
 //
 // Secrets:
 //   IMPORT_SECRET                  required; callers send it as x-import-secret
 //   ADZUNA_APP_ID, ADZUNA_APP_KEY  free keys from developer.adzuna.com
-//   HF_TOKEN                       already set for the embed function
 //
 // Deploy with --no-verify-jwt: the shared secret is the authentication.
 
@@ -40,14 +41,20 @@ const DEFAULT_WHAT = [
   'devops engineer',
 ];
 const STALE_AFTER_DAYS = 7;
-const EMBED_BATCH = 16;
-const MAX_EMBED_PER_RUN = 300;
+const EMBED_BATCH = 5;
+// Edge Functions get about 2s of CPU per request on the free plan, and gte-small
+// takes ~0.4s per job, so each call embeds a handful. A per-minute cron job
+// ({"embed_only": true}) works through the rest; see "unembedded" in the response.
+const MAX_EMBED_PER_RUN = 8;
+const DEFAULT_EMBED_PER_RUN = 5;
 
 interface Body {
   sources?: JobSource[];
   what?: string[] | string;
   where?: string;
   country?: string;
+  embed_only?: boolean;
+  embed_limit?: number;
 }
 
 Deno.serve(async (req) => {
@@ -70,7 +77,9 @@ Deno.serve(async (req) => {
   const adzunaId = Deno.env.get('ADZUNA_APP_ID');
   const adzunaKey = Deno.env.get('ADZUNA_APP_KEY');
   const configured: JobSource[] = adzunaId && adzunaKey ? ['adzuna', 'arbeitnow'] : ['arbeitnow'];
-  const sources = (body.sources ?? configured).filter((s) => configured.includes(s));
+  const sources = body.embed_only
+    ? []
+    : (body.sources ?? configured).filter((s) => configured.includes(s));
 
   const admin = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -144,11 +153,8 @@ Deno.serve(async (req) => {
   report.deactivated = deactivated;
 
   // 4. Embed imported jobs that don't have a vector yet.
-  const hfToken = Deno.env.get('HF_TOKEN');
   let embedded = 0;
-  if (!hfToken) {
-    errors.push('HF_TOKEN is not configured; jobs imported without match scores');
-  } else {
+  {
     const { data: pending, error } = await admin
       .from('jobs')
       .select('id, title, company_name, description, required_skills, location, is_remote')
@@ -156,13 +162,13 @@ Deno.serve(async (req) => {
       .eq('is_active', true)
       .is('embedding', null)
       .order('created_at', { ascending: false })
-      .limit(MAX_EMBED_PER_RUN);
+      .limit(Math.max(1, Math.min(body.embed_limit ?? DEFAULT_EMBED_PER_RUN, MAX_EMBED_PER_RUN)));
     if (error) errors.push(`embed query: ${error.message}`);
 
     for (let i = 0; i < (pending ?? []).length; i += EMBED_BATCH) {
       const batch = pending!.slice(i, i + EMBED_BATCH);
       try {
-        const vectors = await generateEmbeddings(batch.map(buildJobText), hfToken);
+        const vectors = await generateEmbeddings(batch.map(buildJobText));
         for (let k = 0; k < batch.length; k++) {
           const { error: updateError } = await admin
             .from('jobs')
@@ -172,11 +178,18 @@ Deno.serve(async (req) => {
         }
       } catch (e) {
         errors.push(`embed: ${(e as Error).message}`);
-        break; // HF is down or rate limited; the next run picks up the rest
+        break; // the next run picks up the rest
       }
     }
   }
   report.embedded = embedded;
+
+  const { count: unembedded } = await admin
+    .from('jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('is_active', true)
+    .is('embedding', null);
+  report.unembedded = unembedded ?? null;
 
   return json({ ok: errors.length === 0, ...report, errors });
 });
