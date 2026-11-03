@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
       );
       const { data: jobs, error } = await admin
         .from('jobs')
-        .select('id, title, company_name, description, required_skills, location, is_remote')
+        .select('id, title, company_name, description, required_skills, location, is_remote, updated_at')
         .eq('is_active', true)
         .is('embedding', null)
         .order('created_at', { ascending: true })
@@ -106,12 +106,15 @@ Deno.serve(async (req) => {
       let embedded = 0;
       for (const job of jobs ?? []) {
         const embedding = await generateEmbedding(buildJobText(job));
-        const { error: updateError } = await admin
+        // Skip the write if the job changed while we were embedding it.
+        const { data: written, error: updateError } = await admin
           .from('jobs')
           .update({ embedding: toPgVector(embedding) })
           .eq('id', job.id)
-          .is('embedding', null);
-        if (!updateError) embedded++;
+          .eq('updated_at', job.updated_at)
+          .is('embedding', null)
+          .select('id');
+        if (!updateError && written.length) embedded++;
       }
 
       const { count } = await admin

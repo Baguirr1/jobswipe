@@ -22,7 +22,7 @@
 // Deploy with --no-verify-jwt: the shared secret is the authentication.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { buildJobText, generateEmbeddings, toPgVector } from '../_shared/embeddings.ts';
+import { buildJobText, generateEmbedding, toPgVector } from '../_shared/embeddings.ts';
 import {
   dedupeJobs,
   fetchAdzuna,
@@ -41,7 +41,6 @@ const DEFAULT_WHAT = [
   'devops engineer',
 ];
 const STALE_AFTER_DAYS = 7;
-const EMBED_BATCH = 5;
 // Edge Functions get about 2s of CPU per request on the free plan, and gte-small
 // takes ~0.4s per job, so each call embeds a handful. A per-minute cron job
 // ({"embed_only": true}) works through the rest; see "unembedded" in the response.
@@ -157,7 +156,7 @@ Deno.serve(async (req) => {
   {
     const { data: pending, error } = await admin
       .from('jobs')
-      .select('id, title, company_name, description, required_skills, location, is_remote')
+      .select('id, title, company_name, description, required_skills, location, is_remote, updated_at')
       .neq('source', 'jobswipe')
       .eq('is_active', true)
       .is('embedding', null)
@@ -165,17 +164,22 @@ Deno.serve(async (req) => {
       .limit(Math.max(1, Math.min(body.embed_limit ?? DEFAULT_EMBED_PER_RUN, MAX_EMBED_PER_RUN)));
     if (error) errors.push(`embed query: ${error.message}`);
 
-    for (let i = 0; i < (pending ?? []).length; i += EMBED_BATCH) {
-      const batch = pending!.slice(i, i + EMBED_BATCH);
+    // Save each vector as soon as it exists, so a CPU-limit kill mid-run keeps
+    // the jobs already done. The write only lands if the row is unchanged since
+    // we read it (same updated_at, still no embedding); otherwise another worker
+    // or a newer import got there first and this vector would be stale.
+    for (const job of pending ?? []) {
       try {
-        const vectors = await generateEmbeddings(batch.map(buildJobText));
-        for (let k = 0; k < batch.length; k++) {
-          const { error: updateError } = await admin
-            .from('jobs')
-            .update({ embedding: toPgVector(vectors[k]) })
-            .eq('id', batch[k].id);
-          if (!updateError) embedded++;
-        }
+        const vector = await generateEmbedding(buildJobText(job));
+        const { data: written, error: updateError } = await admin
+          .from('jobs')
+          .update({ embedding: toPgVector(vector) })
+          .eq('id', job.id)
+          .eq('updated_at', job.updated_at)
+          .is('embedding', null)
+          .select('id');
+        if (updateError) errors.push(`embed save: ${updateError.message}`);
+        else if (written.length) embedded++;
       } catch (e) {
         errors.push(`embed: ${(e as Error).message}`);
         break; // the next run picks up the rest
