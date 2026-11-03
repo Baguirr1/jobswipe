@@ -8,6 +8,8 @@ interface Options<T> {
   /** Persist a swipe. Resolve with a match id when the swipe created a match. */
   persist: (item: T, direction: SwipeDirection) => Promise<string | null>;
   getKey: (item: T) => string;
+  /** Reverse a persisted swipe. When given, the last swipe can be undone. */
+  undo?: (item: T) => Promise<void>;
   /** Refill when this many cards (or fewer) remain. */
   prefetchAt?: number;
   enabled?: boolean;
@@ -25,6 +27,7 @@ export function useSwipeQueue<T>({
   fetchBatch,
   persist,
   getKey,
+  undo,
   prefetchAt = 3,
   enabled = true,
 }: Options<T>) {
@@ -33,6 +36,31 @@ export function useSwipeQueue<T>({
   const [exhausted, setExhausted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<{ id: string; item: T } | null>(null);
+  // Only the most recent swipe can be undone. `saved` resolves true once its
+  // write succeeded (false if it failed and the card was already restored).
+  // `source` is the fetchBatch (i.e. feed + filters) the swipe was made in.
+  const lastSwipe = useRef<{ item: T; saved: Promise<boolean>; source: () => Promise<T[]> } | null>(
+    null,
+  );
+  const [canUndo, setCanUndo] = useState(false);
+  const [undoing, setUndoing] = useState(false);
+
+  // A new fetchBatch means a different feed (e.g. new filters): clear the old
+  // deck right away instead of leaving its cards swipeable under the new
+  // filters, and drop undo (its card may not belong in the new feed).
+  // State adjusted during render, per the React docs.
+  const [source, setSource] = useState(() => fetchBatch);
+  if (source !== fetchBatch) {
+    setSource(() => fetchBatch);
+    setItems([]);
+    setLoading(true);
+    setExhausted(false);
+    setCanUndo(false);
+  }
+  const sourceRef = useRef(fetchBatch);
+  useEffect(() => {
+    sourceRef.current = fetchBatch;
+  }, [fetchBatch]);
 
   const pending = useRef(new Set<string>());
   const fetching = useRef(false);
@@ -52,8 +80,15 @@ export function useSwipeQueue<T>({
         return;
       }
       fetching.current = true;
+      // Results for a feed that has since been replaced are thrown away.
+      let stale = false;
       try {
-        const batch = (await fetchBatch()).filter((i) => !pending.current.has(getKey(i)));
+        const raw = await fetchBatch();
+        if (fetchBatch !== sourceRef.current) {
+          stale = true;
+          return;
+        }
+        const batch = raw.filter((i) => !pending.current.has(getKey(i)));
         // The server also returns cards still sitting in the deck (not swiped yet),
         // so only genuinely new cards count toward "more available".
         const seen = new Set(mode === 'replace' ? [] : itemsRef.current.map(getKey));
@@ -62,13 +97,16 @@ export function useSwipeQueue<T>({
         setExhausted(fresh.length === 0);
         setError(null);
       } catch (e) {
-        setError((e as Error).message);
+        if (fetchBatch !== sourceRef.current) stale = true;
+        else setError((e as Error).message);
       } finally {
         fetching.current = false;
-        setLoading(false);
-        if (replaceQueued.current) {
+        if (replaceQueued.current || stale) {
+          // Keep showing the spinner; the current feed loads next.
           replaceQueued.current = false;
           loadRef.current('replace');
+        } else {
+          setLoading(false);
         }
       }
     },
@@ -90,22 +128,60 @@ export function useSwipeQueue<T>({
   const swipe = useCallback(
     (item: T, direction: SwipeDirection) => {
       const key = getKey(item);
+      const swipedIn = fetchBatch;
       pending.current.add(key);
       setItems((prev) => prev.filter((i) => getKey(i) !== key));
 
-      persist(item, direction)
+      const saved = persist(item, direction)
         .then((id) => {
           if (id) setMatchId({ id, item });
+          return true;
         })
         .catch((e: Error) => {
-          // Roll back: return the card to the top of the deck.
-          setItems((prev) => [item, ...prev.filter((i) => getKey(i) !== key)]);
+          // Roll back: return the card to the top of the deck (if it's still
+          // the same feed; otherwise the next load brings it back if it fits).
+          if (swipedIn === sourceRef.current) {
+            setItems((prev) => [item, ...prev.filter((i) => getKey(i) !== key)]);
+          }
           setError(`Couldn't save that swipe — ${e.message}`);
+          if (lastSwipe.current?.item === item) {
+            lastSwipe.current = null;
+            setCanUndo(false);
+          }
+          return false;
         })
         .finally(() => pending.current.delete(key));
+
+      lastSwipe.current = { item, saved, source: swipedIn };
+      setCanUndo(true);
     },
-    [persist, getKey],
+    [persist, getKey, fetchBatch],
   );
+
+  const undoLast = useCallback(async () => {
+    const last = lastSwipe.current;
+    lastSwipe.current = null;
+    if (!last || !undo || last.source !== sourceRef.current) {
+      setCanUndo(false);
+      return;
+    }
+    setCanUndo(false);
+    setUndoing(true);
+    try {
+      // The write may still be in flight; undo only what actually got saved.
+      if (!(await last.saved)) return;
+      await undo(last.item);
+      // Filters changed while undoing: the swipe is gone server-side, and the
+      // card comes back through the new feed only if it matches.
+      if (last.source !== sourceRef.current) return;
+      const key = getKey(last.item);
+      setItems((prev) => [last.item, ...prev.filter((i) => getKey(i) !== key)]);
+    } catch (e) {
+      setError(`Couldn't undo — ${(e as Error).message}`);
+    } finally {
+      setUndoing(false);
+    }
+  }, [undo, getKey]);
 
   return {
     items,
@@ -119,5 +195,7 @@ export function useSwipeQueue<T>({
     clearError: () => setError(null),
     match: matchId,
     clearMatch: () => setMatchId(null),
+    canUndo: !!undo && canUndo && !undoing,
+    undo: undoLast,
   };
 }

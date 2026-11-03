@@ -1,17 +1,18 @@
 import { router } from 'expo-router';
-import { Bookmark, Heart, RefreshCw, X } from 'lucide-react-native';
+import { Bookmark, Heart, RefreshCw, RotateCcw, SlidersHorizontal, X } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyFeed } from '@/components/EmptyFeed';
+import { activeFilterCount, FilterSheet, filterChips, NO_FILTERS } from '@/components/FilterSheet';
 import { JobCardBack, JobCardFront } from '@/components/JobCard';
 import { MatchModal } from '@/components/MatchModal';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/SwipeDeck';
 import { useSwipeQueue } from '@/hooks/useSwipeQueue';
-import { getRecommendedJobs, swipeJob } from '@/lib/api';
+import { getRecommendedJobs, swipeJob, undoSwipe } from '@/lib/api';
 import { backfillJobEmbeddings, embedMyProfile } from '@/lib/embeddings';
-import type { RecommendedJob, SwipeDirection } from '@/lib/types';
+import type { JobFilters, RecommendedJob, SwipeDirection } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
 
 const BATCH_SIZE = 20;
@@ -21,19 +22,26 @@ export default function DiscoverScreen() {
   const { profile } = useAuth();
   const deck = useRef<SwipeDeckHandle>(null);
   const candidateId = profile?.id;
+  const [filters, setFilters] = useState<JobFilters>(NO_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Ranked by pgvector cosine distance; already-swiped jobs are excluded server-side.
+  // A new `filters` value changes fetchBatch, which reloads the deck.
   const fetchBatch = useCallback(
-    () => getRecommendedJobs(candidateId!, BATCH_SIZE),
-    [candidateId],
+    () => getRecommendedJobs(candidateId!, BATCH_SIZE, filters),
+    [candidateId, filters],
   );
   // Imported jobs have no recruiter in the app, so a right swipe saves the job
   // for applying on the original site instead of waiting for a match.
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const undo = useCallback(async (job: RecommendedJob) => {
+    await undoSwipe(job.id);
+    setSavedNotice(null);
+  }, []);
   const persist = useCallback(async (job: RecommendedJob, direction: SwipeDirection) => {
     const matchId = await swipeJob(job.id, direction);
     if (direction === 'right' && job.source !== 'jobswipe') {
-      setSavedNotice(`Saved ${job.title}. Apply from the Matches tab.`);
+      setSavedNotice(`Saved ${job.title}. Apply from the Saved tab.`);
     }
     return matchId;
   }, []);
@@ -47,6 +55,7 @@ export default function DiscoverScreen() {
     fetchBatch,
     persist,
     getKey,
+    undo,
     enabled: !!candidateId,
   });
 
@@ -87,6 +96,7 @@ export default function DiscoverScreen() {
 
   // Imported listings have no recruiter to match with: a right swipe only saves
   // them, so say "Save" rather than "Apply".
+  const filterCount = activeFilterCount(filters);
   const top = feed.items[0];
   const topIsImported = !!top && top.source !== 'jobswipe';
 
@@ -94,14 +104,44 @@ export default function DiscoverScreen() {
     <SafeAreaView className="flex-1 bg-gray-50" edges={['top']}>
       <View className="flex-row items-center justify-between px-5 pb-3 pt-2">
         <Text className="text-3xl font-black text-brand">JobSwipe</Text>
-        <Pressable
-          onPress={feed.refresh}
-          accessibilityLabel="Refresh recommendations"
-          className="h-10 w-10 items-center justify-center rounded-full bg-white"
-        >
-          <RefreshCw size={18} color="#6B7280" />
-        </Pressable>
+        <View className="flex-row gap-2">
+          <Pressable
+            onPress={() => setFiltersOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Filters${filterCount ? `, ${filterCount} active` : ''}`}
+            className={`h-10 w-10 items-center justify-center rounded-full ${
+              filterCount ? 'bg-brand' : 'bg-white'
+            }`}
+          >
+            <SlidersHorizontal size={18} color={filterCount ? '#fff' : '#6B7280'} />
+          </Pressable>
+          <Pressable
+            onPress={feed.refresh}
+            accessibilityRole="button"
+            accessibilityLabel="Refresh recommendations"
+            className="h-10 w-10 items-center justify-center rounded-full bg-white"
+          >
+            <RefreshCw size={18} color="#6B7280" />
+          </Pressable>
+        </View>
       </View>
+
+      {filterCount ? (
+        <View className="mb-2 flex-row flex-wrap items-center px-5">
+          {filterChips(filters).map((chip) => (
+            <Pressable
+              key={chip}
+              onPress={() => setFiltersOpen(true)}
+              className="mb-1 mr-2 rounded-full bg-brand-light px-3 py-1"
+            >
+              <Text className="text-xs font-semibold text-brand">{chip}</Text>
+            </Pressable>
+          ))}
+          <Pressable onPress={() => setFilters(NO_FILTERS)} accessibilityRole="button" className="mb-1">
+            <Text className="text-xs font-semibold text-gray-500">Clear</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {feed.error ? (
         <Pressable onPress={feed.clearError} className="mx-5 mb-2 rounded-xl bg-red-50 px-4 py-3">
@@ -110,7 +150,7 @@ export default function DiscoverScreen() {
       ) : null}
       {savedNotice ? (
         <Pressable
-          onPress={() => router.push('/matches')}
+          onPress={() => router.push('/saved')}
           className="mx-5 mb-2 rounded-xl bg-brand-light px-4 py-3"
         >
           <Text className="text-sm font-medium text-brand-dark" numberOfLines={2}>
@@ -131,36 +171,73 @@ export default function DiscoverScreen() {
             data={feed.items}
             keyExtractor={getKey}
             likeLabel={topIsImported ? 'SAVE' : 'APPLY'}
-            renderFront={(job) => <JobCardFront job={job} mySkills={profile?.skills} />}
-            renderBack={(job) => <JobCardBack job={job} />}
+            renderFront={(job) => <JobCardFront job={job} me={profile} />}
+            renderBack={(job) => <JobCardBack job={job} me={profile} />}
             onSwipe={feed.swipe}
-            emptyComponent={<EmptyFeed onRefresh={feed.refresh} />}
+            emptyComponent={
+              filterCount ? (
+                <EmptyFeed
+                  title="No jobs match your filters"
+                  subtitle="Try a lower salary, a broader location, or clear the filters."
+                  onRefresh={() => setFilters(NO_FILTERS)}
+                />
+              ) : (
+                <EmptyFeed onRefresh={feed.refresh} />
+              )
+            }
           />
         )}
       </View>
 
-      {feed.items.length > 0 && (
-        <View className="flex-row items-center justify-center gap-8 pb-6 pt-3">
-          <ActionButton
-            label="Pass"
-            onPress={() => deck.current?.swipe('left')}
-            icon={<X size={32} color="#EF4444" strokeWidth={3} />}
-          />
-          {topIsImported ? (
-            <ActionButton
-              label="Save job"
-              onPress={() => deck.current?.swipe('right')}
-              icon={<Bookmark size={28} color="#22C55E" fill="#22C55E" />}
-            />
-          ) : (
-            <ActionButton
-              label="Apply"
-              onPress={() => deck.current?.swipe('right')}
-              icon={<Heart size={30} color="#22C55E" fill="#22C55E" />}
-            />
-          )}
+      {(feed.items.length > 0 || feed.canUndo) && (
+        <View className="flex-row items-center justify-center gap-6 pb-6 pt-3">
+          <Pressable
+            onPress={feed.undo}
+            disabled={!feed.canUndo}
+            accessibilityRole="button"
+            accessibilityLabel="Undo last swipe"
+            accessibilityState={{ disabled: !feed.canUndo }}
+            className={`h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm ${
+              feed.canUndo ? '' : 'opacity-40'
+            }`}
+          >
+            <RotateCcw size={20} color="#F59E0B" strokeWidth={2.5} />
+          </Pressable>
+          {/* With an empty deck, only Undo is useful (bring the last card back). */}
+          {feed.items.length > 0 ? (
+            <>
+              <ActionButton
+                label="Pass"
+                onPress={() => deck.current?.swipe('left')}
+                icon={<X size={32} color="#EF4444" strokeWidth={3} />}
+              />
+              {topIsImported ? (
+                <ActionButton
+                  label="Save job"
+                  onPress={() => deck.current?.swipe('right')}
+                  icon={<Bookmark size={28} color="#22C55E" fill="#22C55E" />}
+                />
+              ) : (
+                <ActionButton
+                  label="Apply"
+                  onPress={() => deck.current?.swipe('right')}
+                  icon={<Heart size={30} color="#22C55E" fill="#22C55E" />}
+                />
+              )}
+            </>
+          ) : null}
         </View>
       )}
+
+      <FilterSheet
+        visible={filtersOpen}
+        value={filters}
+        onClose={() => setFiltersOpen(false)}
+        onApply={(next) => {
+          setFiltersOpen(false);
+          setFilters(next);
+        }}
+      />
 
       <MatchModal
         visible={!!feed.match}

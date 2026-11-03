@@ -69,6 +69,7 @@ function RootNavigator() {
           options={{ headerShown: true, title: 'Job listing', presentation: 'modal' }}
         />
         <Stack.Screen name="review/[jobId]" options={{ headerShown: true, title: 'Applicants' }} />
+        <Stack.Screen name="insights/[jobId]" options={{ headerShown: true, title: 'Insights' }} />
         <Stack.Screen name="profile-edit" options={{ headerShown: true, title: 'Edit profile' }} />
       </Stack.Protected>
     </Stack>

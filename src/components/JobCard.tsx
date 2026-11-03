@@ -1,20 +1,30 @@
-import { Banknote, Building2, ExternalLink, Globe, MapPin, RotateCw } from 'lucide-react-native';
+import {
+  Banknote,
+  Building2,
+  ExternalLink,
+  Globe,
+  MapPin,
+  RotateCw,
+  Sparkles,
+} from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
 import { CompanyLogo, MatchBadge, Tag } from '@/components/ui';
 import { formatSalaryRange, sourceLabel } from '@/lib/format';
-import type { RecommendedJob } from '@/lib/types';
+import { explainMatch, summarizeMatch } from '@/lib/matchReasons';
+import type { Profile, RecommendedJob } from '@/lib/types';
 
 interface Props {
   job: RecommendedJob;
-  /** Candidate's skills, highlighted when they overlap the job's requirements. */
-  mySkills?: string[];
+  /** The candidate: their skills are highlighted and compared with the job's. */
+  me?: Pick<Profile, 'skills' | 'target_salary_min' | 'target_salary_max'> | null;
 }
 
-export function JobCardFront({ job, mySkills = [] }: Props) {
-  const mine = new Set(mySkills.map((s) => s.toLowerCase()));
+export function JobCardFront({ job, me }: Props) {
+  const mine = new Set((me?.skills ?? []).map((s) => s.toLowerCase()));
   const attribution = sourceLabel(job.source);
+  const summary = summarizeMatch(explainMatch(job, me));
   return (
     <View className="flex-1 p-6">
       <View className="flex-row items-start justify-between">
@@ -46,6 +56,15 @@ export function JobCardFront({ job, mySkills = [] }: Props) {
           {formatSalaryRange(job.salary_min, job.salary_max)}
         </Text>
       </View>
+
+      {summary ? (
+        <View className="mt-3 flex-row items-center">
+          <Sparkles size={14} color="#6C47FF" />
+          <Text className="ml-1.5 flex-1 text-sm font-medium text-brand" numberOfLines={1}>
+            {summary}
+          </Text>
+        </View>
+      ) : null}
 
       <View className="mt-4 flex-row flex-wrap">
         <View className="mb-2 mr-2 flex-row items-center rounded-full bg-blue-50 px-3 py-1.5">
@@ -79,8 +98,9 @@ export function JobCardFront({ job, mySkills = [] }: Props) {
   );
 }
 
-export function JobCardBack({ job }: Props) {
+export function JobCardBack({ job, me }: Props) {
   const attribution = sourceLabel(job.source);
+  const reasons = explainMatch(job, me);
   return (
     <View className="flex-1 p-6">
       <View className="flex-row items-center">
@@ -93,27 +113,67 @@ export function JobCardBack({ job }: Props) {
         </View>
       </View>
       <ScrollView className="mt-4 flex-1" showsVerticalScrollIndicator={false}>
+        <WhyThisMatch score={job.match_score_percentage} reasons={reasons} />
         <Text className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
           About the role
         </Text>
         <Text className="text-base leading-6 text-gray-700">
           {job.description || 'No description provided.'}
         </Text>
-        <Text className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-gray-400">
-          All required skills
-        </Text>
-        <View className="flex-row flex-wrap pb-6">
-          {job.required_skills.map((s) => (
-            <Tag key={s} label={s} />
-          ))}
-        </View>
         {attribution ? (
           <Text className="pb-6 text-sm text-gray-500">
-            {attribution}. Swipe right to save it, then apply from the Matches tab.
+            {attribution}. Swipe right to save it, then apply from the Saved tab.
           </Text>
         ) : null}
       </ScrollView>
       <Text className="pt-2 text-center text-xs text-gray-400">Tap to flip back</Text>
+    </View>
+  );
+}
+
+function WhyThisMatch({
+  score,
+  reasons,
+}: {
+  score: number | null;
+  reasons: ReturnType<typeof explainMatch>;
+}) {
+  const salaryText = {
+    fits: 'The listed pay reaches your target salary.',
+    below: 'The listed pay is below your target salary.',
+    unknown: null,
+  }[reasons.salary];
+  return (
+    <View className="mb-6 rounded-2xl bg-brand-light p-4">
+      <Text className="mb-2 text-xs font-semibold uppercase tracking-wider text-brand">
+        Why this match
+      </Text>
+      <Text className="mb-3 text-sm text-gray-700">
+        {score != null
+          ? `${Math.round(score)}% is how closely your profile text matches this job's description, scored by an AI embedding model.`
+          : 'No AI score yet: this job or your profile is still being processed.'}
+      </Text>
+      {reasons.have.length > 0 ? (
+        <>
+          <Text className="mb-1.5 text-xs font-semibold text-gray-600">Skills you have</Text>
+          <View className="flex-row flex-wrap">
+            {reasons.have.map((s) => (
+              <Tag key={s} label={s} highlighted />
+            ))}
+          </View>
+        </>
+      ) : null}
+      {reasons.missing.length > 0 ? (
+        <>
+          <Text className="mb-1.5 mt-1 text-xs font-semibold text-gray-600">Skills to add</Text>
+          <View className="flex-row flex-wrap">
+            {reasons.missing.map((s) => (
+              <Tag key={s} label={s} />
+            ))}
+          </View>
+        </>
+      ) : null}
+      {salaryText ? <Text className="mt-1 text-sm text-gray-700">{salaryText}</Text> : null}
     </View>
   );
 }

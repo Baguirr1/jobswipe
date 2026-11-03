@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { Briefcase, ChevronRight, Pencil, Plus, Users } from 'lucide-react-native';
+import { BarChart3, Briefcase, ChevronRight, Pencil, Plus, Users } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, Switch, Text, View } from 'react-native';
 
@@ -94,6 +94,15 @@ export default function RecruiterJobsScreen() {
                 >
                   <Pencil size={14} color="#374151" />
                   <Text className="ml-1.5 text-sm font-semibold text-gray-700">Edit</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => router.push({ pathname: '/insights/[jobId]', params: { jobId: item.id } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Insights for ${item.title}`}
+                  className="mr-2 flex-row items-center rounded-xl bg-gray-100 px-3 py-2.5"
+                >
+                  <BarChart3 size={14} color="#374151" />
+                  <Text className="ml-1.5 text-sm font-semibold text-gray-700">Insights</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => router.push({ pathname: '/review/[jobId]', params: { jobId: item.id } })}

@@ -40,10 +40,45 @@ export interface Job {
 /** An imported job the candidate swiped right on (applied to off-platform). */
 export interface SavedJob {
   created_at: string;
+  /** When the candidate marked it as applied; null if not yet. */
+  applied_at: string | null;
   job: Pick<
     Job,
-    'id' | 'title' | 'company_name' | 'company_logo' | 'location' | 'is_remote' | 'source' | 'apply_url'
+    | 'id'
+    | 'title'
+    | 'company_name'
+    | 'company_logo'
+    | 'location'
+    | 'is_remote'
+    | 'source'
+    | 'apply_url'
+    | 'description'
+    | 'required_skills'
+    | 'salary_min'
+    | 'salary_max'
   >;
+}
+
+/** Discover filters, applied server-side. */
+export interface JobFilters {
+  remoteOnly: boolean;
+  /** Hides jobs without a listed salary when set. */
+  minSalary: number | null;
+  location: string;
+}
+
+/** Aggregates returned by get_job_insights(). */
+export interface JobInsights {
+  views: number;
+  applicants: number;
+  passes: number;
+  reviewed: number;
+  matches: number;
+  avg_match: number | null;
+  scored: number;
+  match_distribution: { low: number; fair: number; good: number; great: number };
+  required_coverage: { skill: string; count: number }[];
+  top_skills: { skill: string; count: number }[];
 }
 
 /** Row returned by get_recommended_jobs_for_candidate(). */

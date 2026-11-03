@@ -2,6 +2,8 @@ import { supabase } from './supabase';
 import type {
   CandidateForJob,
   Job,
+  JobFilters,
+  JobInsights,
   MatchWithDetails,
   Message,
   Profile,
@@ -47,13 +49,22 @@ export async function updateProfile(userId: string, patch: ProfileUpdate): Promi
 export async function getRecommendedJobs(
   candidateId: string,
   limit = 20,
+  filters?: JobFilters,
 ): Promise<RecommendedJob[]> {
   return unwrap(
     await supabase.rpc('get_recommended_jobs_for_candidate', {
       p_candidate_id: candidateId,
       p_limit: limit,
+      p_remote_only: filters?.remoteOnly ?? false,
+      p_min_salary: filters?.minSalary ?? null,
+      p_location: filters?.location.trim() || null,
     }),
   );
+}
+
+/** Undo a recent swipe (refused by the server once it produced a match). */
+export async function undoSwipe(jobId: string): Promise<void> {
+  unwrap(await supabase.rpc('undo_swipe', { p_job_id: jobId }));
 }
 
 /** Records a swipe. Returns the match id if this swipe completed a match. */
@@ -69,7 +80,7 @@ export async function getSavedJobs(candidateId: string): Promise<SavedJob[]> {
     await supabase
       .from('swipes')
       .select(
-        'created_at, job:jobs!inner ( id, title, company_name, company_logo, location, is_remote, source, apply_url )',
+        'created_at, applied_at, job:jobs!inner ( id, title, company_name, company_logo, location, is_remote, source, apply_url, description, required_skills, salary_min, salary_max )',
       )
       .eq('candidate_id', candidateId)
       .eq('direction', 'right')
@@ -79,7 +90,20 @@ export async function getSavedJobs(candidateId: string): Promise<SavedJob[]> {
   );
 }
 
+export async function setSavedJobApplied(jobId: string, applied: boolean): Promise<void> {
+  unwrap(await supabase.rpc('set_saved_job_applied', { p_job_id: jobId, p_applied: applied }));
+}
+
+/** Drop a saved job; it's recorded as a pass so it doesn't return to the feed. */
+export async function removeSavedJob(jobId: string): Promise<void> {
+  unwrap(await supabase.rpc('remove_saved_job', { p_job_id: jobId }));
+}
+
 // ---------- Recruiter ----------
+
+export async function getJobInsights(jobId: string): Promise<JobInsights> {
+  return unwrap(await supabase.rpc('get_job_insights', { p_job_id: jobId }));
+}
 
 export async function getMyJobs(recruiterId: string): Promise<Job[]> {
   return unwrap(
