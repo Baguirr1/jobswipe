@@ -2,13 +2,14 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { FileText, Sparkles } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { SalaryRange } from '@/components/SalaryRange';
 import { SkillSelector } from '@/components/SkillSelector';
 import { Button, Field } from '@/components/ui';
 import { updateProfile } from '@/lib/api';
 import { embedMyProfile } from '@/lib/embeddings';
+import { showAlert } from '@/lib/notify';
 import type { Profile } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -40,14 +41,14 @@ export function ProfileForm({ profile, submitLabel, onSaved }: {
       const text = await new File(result.assets[0].uri).text();
       setResume(text.slice(0, 20_000));
     } catch (e) {
-      Alert.alert('Could not read file', (e as Error).message);
+      showAlert('Could not read file', (e as Error).message);
     }
   };
 
   const save = async () => {
-    if (!fullName.trim()) return Alert.alert('Add your name');
+    if (!fullName.trim()) return showAlert('Add your name');
     if (isCandidate && (!targetTitle.trim() || skills.length === 0)) {
-      return Alert.alert('Almost there', 'Add a target job title and at least one skill.');
+      return showAlert('Almost there', 'Add a target job title and at least one skill.');
     }
     setSaving(true);
     try {
@@ -69,7 +70,7 @@ export function ProfileForm({ profile, submitLabel, onSaved }: {
         } catch (e) {
           // Non-fatal: the feed falls back to newest-first without an embedding.
           console.warn('Embedding failed', e);
-          Alert.alert(
+          showAlert(
             'Profile saved',
             "We couldn't generate your AI match profile yet, so jobs will show newest-first for now.",
           );
@@ -81,7 +82,7 @@ export function ProfileForm({ profile, submitLabel, onSaved }: {
       await refreshProfile();
       onSaved?.();
     } catch (e) {
-      Alert.alert('Save failed', (e as Error).message);
+      showAlert('Save failed', (e as Error).message);
     } finally {
       setSaving(false);
     }

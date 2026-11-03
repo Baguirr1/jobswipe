@@ -36,6 +36,10 @@ export function useSwipeQueue<T>({
 
   const pending = useRef(new Set<string>());
   const fetching = useRef(false);
+  // A refresh requested mid-fetch is queued, not dropped, so it still runs
+  // (e.g. a profile save landing during a prefetch).
+  const replaceQueued = useRef(false);
+  const loadRef = useRef<(mode: 'replace' | 'append') => Promise<void>>(async () => {});
   const itemsRef = useRef(items);
   useEffect(() => {
     itemsRef.current = items;
@@ -43,7 +47,10 @@ export function useSwipeQueue<T>({
 
   const load = useCallback(
     async (mode: 'replace' | 'append') => {
-      if (fetching.current) return;
+      if (fetching.current) {
+        if (mode === 'replace') replaceQueued.current = true;
+        return;
+      }
       fetching.current = true;
       try {
         const batch = (await fetchBatch()).filter((i) => !pending.current.has(getKey(i)));
@@ -59,10 +66,17 @@ export function useSwipeQueue<T>({
       } finally {
         fetching.current = false;
         setLoading(false);
+        if (replaceQueued.current) {
+          replaceQueued.current = false;
+          loadRef.current('replace');
+        }
       }
     },
     [fetchBatch, getKey],
   );
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
 
   useEffect(() => {
     if (enabled) load('replace');

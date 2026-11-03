@@ -34,7 +34,9 @@ export function JobCardFront({ job, mySkills = [] }: Props) {
       {attribution ? (
         <View className="mt-1 flex-row items-center">
           <ExternalLink size={13} color="#9CA3AF" />
-          <Text className="ml-1.5 text-xs font-medium text-gray-400">{attribution}</Text>
+          <Text className="ml-1.5 flex-1 text-xs font-medium text-gray-400" numberOfLines={1}>
+            {attribution} · swipe right to save, apply on their site
+          </Text>
         </View>
       ) : null}
 

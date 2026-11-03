@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Heart, RefreshCw, X } from 'lucide-react-native';
+import { Bookmark, Heart, RefreshCw, X } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -75,6 +75,21 @@ export default function DiscoverScreen() {
     })();
   }, [items, refresh]);
 
+  // Saving the profile re-embeds it and refreshes `profile`, which bumps
+  // updated_at. Re-rank the deck so scores reflect the edited profile.
+  const profileVersion = profile?.updated_at;
+  const seenVersion = useRef(profileVersion);
+  useEffect(() => {
+    if (seenVersion.current === profileVersion) return;
+    seenVersion.current = profileVersion;
+    refresh();
+  }, [profileVersion, refresh]);
+
+  // Imported listings have no recruiter to match with: a right swipe only saves
+  // them, so say "Save" rather than "Apply".
+  const top = feed.items[0];
+  const topIsImported = !!top && top.source !== 'jobswipe';
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={['top']}>
       <View className="flex-row items-center justify-between px-5 pb-3 pt-2">
@@ -115,6 +130,7 @@ export default function DiscoverScreen() {
             ref={deck}
             data={feed.items}
             keyExtractor={getKey}
+            likeLabel={topIsImported ? 'SAVE' : 'APPLY'}
             renderFront={(job) => <JobCardFront job={job} mySkills={profile?.skills} />}
             renderBack={(job) => <JobCardBack job={job} />}
             onSwipe={feed.swipe}
@@ -130,11 +146,19 @@ export default function DiscoverScreen() {
             onPress={() => deck.current?.swipe('left')}
             icon={<X size={32} color="#EF4444" strokeWidth={3} />}
           />
-          <ActionButton
-            label="Apply"
-            onPress={() => deck.current?.swipe('right')}
-            icon={<Heart size={30} color="#22C55E" fill="#22C55E" />}
-          />
+          {topIsImported ? (
+            <ActionButton
+              label="Save job"
+              onPress={() => deck.current?.swipe('right')}
+              icon={<Bookmark size={28} color="#22C55E" fill="#22C55E" />}
+            />
+          ) : (
+            <ActionButton
+              label="Apply"
+              onPress={() => deck.current?.swipe('right')}
+              icon={<Heart size={30} color="#22C55E" fill="#22C55E" />}
+            />
+          )}
         </View>
       )}
 

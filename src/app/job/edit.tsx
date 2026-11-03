@@ -2,7 +2,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,6 +14,7 @@ import { SkillSelector } from '@/components/SkillSelector';
 import { Button, Field } from '@/components/ui';
 import { getJob, upsertJob, type JobInput } from '@/lib/api';
 import { embedJob } from '@/lib/embeddings';
+import { showAlert } from '@/lib/notify';
 import { useAuth } from '@/providers/AuthProvider';
 
 const EMPTY: JobInput = {
@@ -40,15 +40,33 @@ export default function EditJobScreen() {
   const { profile } = useAuth();
   const [form, setForm] = useState<JobInput>(EMPTY);
   const [loading, setLoading] = useState(!!id);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
     getJob(id)
-      .then(({ id: _id, recruiter_id: _r, created_at: _c, ...rest }) => setForm(rest))
-      .catch((e) => Alert.alert('Could not load job', e.message))
-      .finally(() => setLoading(false));
-  }, [id]);
+      .then(({ id: _id, recruiter_id: _r, created_at: _c, ...rest }) => {
+        if (!cancelled) setForm(rest);
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setLoadError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, attempt]);
+
+  const retry = () => {
+    setLoading(true);
+    setLoadError(null);
+    setAttempt((n) => n + 1);
+  };
 
   const set = <K extends keyof JobInput>(key: K, value: JobInput[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -56,10 +74,10 @@ export default function EditJobScreen() {
   const save = async () => {
     if (!profile) return;
     if (!form.title.trim() || !form.company_name.trim()) {
-      return Alert.alert('Missing details', 'A job needs a title and company name.');
+      return showAlert('Missing details', 'A job needs a title and company name.');
     }
     if (form.salary_min != null && form.salary_max != null && form.salary_min > form.salary_max) {
-      return Alert.alert('Check salary', 'Minimum salary is higher than maximum.');
+      return showAlert('Check salary', 'Minimum salary is higher than maximum.');
     }
     setSaving(true);
     try {
@@ -74,20 +92,31 @@ export default function EditJobScreen() {
         await embedJob(saved.id);
       } catch (e) {
         console.warn('Job embedding failed', e);
-        Alert.alert(
+        showAlert(
           'Job saved',
           "AI matching isn't ready for this listing yet; it will still appear in feeds, ranked lower.",
         );
       }
       router.back();
     } catch (e) {
-      Alert.alert('Save failed', (e as Error).message);
+      showAlert('Save failed', (e as Error).message);
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) return <ActivityIndicator className="mt-10" color="#6C47FF" />;
+
+  // Never show an empty form for an existing job: saving it would wipe the listing.
+  if (loadError) {
+    return (
+      <View className="flex-1 items-center justify-center bg-gray-50 px-6">
+        <Text className="text-center text-lg font-semibold text-gray-800">Couldn’t load this job</Text>
+        <Text className="mt-1 text-center text-gray-500">{loadError}</Text>
+        <Button title="Try again" onPress={retry} className="mt-6 self-stretch" />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView className="flex-1 bg-gray-50" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

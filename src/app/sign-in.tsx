@@ -1,9 +1,10 @@
 import { Briefcase, UserSearch } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button, Field } from '@/components/ui';
+import { showAlert } from '@/lib/notify';
 import { supabase } from '@/lib/supabase';
 import type { UserRole } from '@/lib/types';
 
@@ -17,7 +18,7 @@ export default function SignIn() {
 
   const submit = async () => {
     if (!email || password.length < 6) {
-      Alert.alert('Check your details', 'Enter an email and a password of at least 6 characters.');
+      showAlert('Check your details', 'Enter an email and a password of at least 6 characters.');
       return;
     }
     setBusy(true);
@@ -34,11 +35,11 @@ export default function SignIn() {
         });
         if (error) throw error;
         if (!data.session) {
-          Alert.alert('Confirm your email', 'We sent you a link to finish signing up.');
+          showAlert('Confirm your email', 'We sent you a link to finish signing up.');
         }
       }
     } catch (e) {
-      Alert.alert('Authentication failed', (e as Error).message);
+      showAlert('Authentication failed', (e as Error).message);
     } finally {
       setBusy(false);
     }

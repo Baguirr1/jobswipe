@@ -2,10 +2,11 @@ import '../global.css';
 
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 
 export default function RootLayout() {
@@ -22,12 +23,27 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, profileError, loading, refreshProfile, signOut } = useAuth();
 
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator size="large" color="#6C47FF" />
+      </View>
+    );
+  }
+
+  // A failed load (e.g. offline) is not the same as "not onboarded yet":
+  // offer a retry instead of dropping a returning user into onboarding.
+  if (session && !profile && profileError) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white px-6">
+        <Text className="text-center text-lg font-semibold text-gray-800">
+          Couldn’t load your profile
+        </Text>
+        <Text className="mt-1 text-center text-gray-500">{profileError}</Text>
+        <Button title="Try again" onPress={refreshProfile} className="mt-6 self-stretch" />
+        <Button title="Sign out" variant="ghost" onPress={signOut} className="mt-2 self-stretch" />
       </View>
     );
   }

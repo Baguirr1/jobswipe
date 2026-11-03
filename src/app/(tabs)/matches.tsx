@@ -15,6 +15,7 @@ export default function MatchesScreen() {
   const [matches, setMatches] = useState<MatchWithDetails[]>([]);
   const [saved, setSaved] = useState<SavedJob[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const isRecruiter = profile?.role === 'recruiter';
   const candidateId = isRecruiter ? undefined : profile?.id;
 
@@ -27,8 +28,11 @@ export default function MatchesScreen() {
       ]);
       setMatches(nextMatches);
       setSaved(nextSaved);
+      setError(null);
     } catch (e) {
+      // Keep whatever was already on screen; just say the refresh failed.
       console.warn('Failed to load matches', e);
+      setError((e as Error).message);
     } finally {
       setRefreshing(false);
     }
@@ -66,7 +70,19 @@ export default function MatchesScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
       ItemSeparatorComponent={() => <View className="h-3" />}
       ListHeaderComponent={
-        saved.length > 0 ? (
+        <>
+        {error ? (
+          <Pressable
+            onPress={load}
+            accessibilityRole="button"
+            className="mb-4 rounded-xl bg-red-50 px-4 py-3"
+          >
+            <Text className="text-sm text-red-700">
+              Couldn’t load your matches. Tap to try again.
+            </Text>
+          </Pressable>
+        ) : null}
+        {saved.length > 0 ? (
           <View className="mb-5">
             <Text className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
               Saved jobs · apply on the company site
@@ -80,10 +96,11 @@ export default function MatchesScreen() {
               </Text>
             ) : null}
           </View>
-        ) : undefined
+        ) : null}
+        </>
       }
       ListEmptyComponent={
-        refreshing || saved.length > 0 ? undefined : (
+        refreshing || error || saved.length > 0 ? undefined : (
           <View className="flex-1 items-center justify-center px-8">
             <HeartHandshake size={56} color="#C4B5FD" />
             <Text className="mt-4 text-center text-lg font-semibold text-gray-800">No matches yet</Text>

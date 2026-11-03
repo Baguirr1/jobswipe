@@ -26,6 +26,8 @@ export default function ChatScreen() {
   const [match, setMatch] = useState<MatchWithDetails | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [draft, setDraft] = useState('');
   const listRef = useRef<FlatList<ChatMessage>>(null);
 
@@ -35,9 +37,20 @@ export default function ChatScreen() {
       .then(([m, msgs]) => {
         if (cancelled) return;
         setMatch(m);
-        setMessages(msgs);
+        // Merge rather than replace: realtime may have delivered newer rows
+        // while history was loading.
+        setMessages((prev) => {
+          const ids = new Set(msgs.map((x) => x.id));
+          return [
+            ...msgs,
+            ...prev.filter((x) => x.match_id === matchId && !ids.has(x.id)),
+          ];
+        });
       })
-      .catch((e) => console.warn('Failed to load chat', e))
+      .catch((e: Error) => {
+        console.warn('Failed to load chat', e);
+        if (!cancelled) setLoadError(e.message);
+      })
       .finally(() => !cancelled && setLoading(false));
 
     // Realtime: append messages from the other participant (RLS applies to
@@ -58,11 +71,17 @@ export default function ChatScreen() {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [matchId]);
+  }, [matchId, attempt]);
+
+  const retry = () => {
+    setLoading(true);
+    setLoadError(null);
+    setAttempt((n) => n + 1);
+  };
 
   const send = async () => {
     const content = draft.trim();
-    if (!content || !profile) return;
+    if (!content || !profile || !match) return;
     setDraft('');
 
     // Optimistic bubble, replaced by the server row on success.
@@ -112,6 +131,20 @@ export default function ChatScreen() {
       >
         {loading ? (
           <ActivityIndicator className="mt-10" color="#6C47FF" />
+        ) : loadError ? (
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-center text-lg font-semibold text-gray-800">
+              Couldn’t load this conversation
+            </Text>
+            <Text className="mt-1 text-center text-gray-500">{loadError}</Text>
+            <Pressable
+              onPress={retry}
+              accessibilityRole="button"
+              className="mt-5 rounded-2xl bg-brand px-6 py-3"
+            >
+              <Text className="font-semibold text-white">Try again</Text>
+            </Pressable>
+          </View>
         ) : (
           <FlatList
             ref={listRef}
@@ -138,10 +171,10 @@ export default function ChatScreen() {
           />
           <Pressable
             onPress={send}
-            disabled={!draft.trim()}
+            disabled={!draft.trim() || !match}
             accessibilityLabel="Send message"
             className={`ml-2 h-11 w-11 items-center justify-center rounded-full ${
-              draft.trim() ? 'bg-brand' : 'bg-gray-200'
+              draft.trim() && match ? 'bg-brand' : 'bg-gray-200'
             }`}
           >
             <SendHorizontal size={20} color="#fff" />

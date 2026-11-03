@@ -1,11 +1,12 @@
 import { router, useFocusEffect } from 'expo-router';
 import { Briefcase, ChevronRight, Pencil, Plus, Users } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
-import { Alert, FlatList, Pressable, RefreshControl, Switch, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, Switch, Text, View } from 'react-native';
 
 import { CompanyLogo } from '@/components/ui';
 import { getApplicantCounts, getMyJobs, setJobActive } from '@/lib/api';
 import { formatSalaryRange } from '@/lib/format';
+import { showAlert } from '@/lib/notify';
 import type { Job } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -23,7 +24,7 @@ export default function RecruiterJobsScreen() {
       setJobs(mine);
       setApplicants(await getApplicantCounts(mine.map((j) => j.id)));
     } catch (e) {
-      Alert.alert('Could not load jobs', (e as Error).message);
+      showAlert('Could not load jobs', (e as Error).message);
     } finally {
       setRefreshing(false);
     }
@@ -41,7 +42,7 @@ export default function RecruiterJobsScreen() {
       await setJobActive(job.id, value);
     } catch (e) {
       setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, is_active: !value } : j)));
-      Alert.alert('Update failed', (e as Error).message);
+      showAlert('Update failed', (e as Error).message);
     }
   };
 

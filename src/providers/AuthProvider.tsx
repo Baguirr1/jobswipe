@@ -1,5 +1,13 @@
 import type { Session } from '@supabase/supabase-js';
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { getProfile } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +16,8 @@ import type { Profile } from '@/lib/types';
 interface AuthContextValue {
   session: Session | null;
   profile: Profile | null;
+  /** Set when the signed-in user's profile failed to load (e.g. offline). */
+  profileError: string | null;
   /** True until the initial session (and profile, if signed in) has loaded. */
   loading: boolean;
   refreshProfile: () => Promise<void>;
@@ -21,20 +31,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  // Only the newest request may write state, so a slow response for a previous
+  // user (or a superseded reload) can't overwrite the current profile.
+  const latestRequest = useRef(0);
 
   const loadProfile = useCallback(async (userId: string | undefined) => {
+    const request = ++latestRequest.current;
+    setProfileError(null);
     if (!userId) {
       setProfile(null);
+      setProfileLoading(false);
       return;
     }
     setProfileLoading(true);
+    // Keep the current profile during a reload of the same user; drop someone else's.
+    setProfile((prev) => (prev?.id === userId ? prev : null));
     try {
-      setProfile(await getProfile(userId));
+      const next = await getProfile(userId);
+      if (request === latestRequest.current) setProfile(next);
     } catch (e) {
       console.warn('Failed to load profile', e);
-      setProfile(null);
+      if (request === latestRequest.current) setProfileError((e as Error).message);
     } finally {
-      setProfileLoading(false);
+      if (request === latestRequest.current) setProfileLoading(false);
     }
   }, []);
 
@@ -49,6 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(next);
       // Token refreshes don't change the user; skip the extra round trip.
       if (event !== 'TOKEN_REFRESHED') {
+        // Synchronously, in the same batch as setSession: drop a different
+        // user's profile and invalidate their in-flight request, so the new
+        // session never renders with the previous user's data.
+        latestRequest.current++;
+        const nextId = next?.user.id;
+        setProfile((prev) => (prev && prev.id === nextId ? prev : null));
         if (next) setProfileLoading(true); // batched with setSession: no flash
         // Defer: calling Supabase inside this callback can deadlock the auth lock.
         setTimeout(() => loadProfile(next?.user.id), 0);
@@ -60,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     session,
     profile,
+    profileError,
     loading: initializing || (!!session && !profile && profileLoading),
     refreshProfile: () => loadProfile(session?.user.id),
     signOut: async () => {

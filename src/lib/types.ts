@@ -14,6 +14,7 @@ export interface Profile {
   target_salary_max: number | null;
   onboarded: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Job {
