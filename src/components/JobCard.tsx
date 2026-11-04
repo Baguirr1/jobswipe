@@ -1,8 +1,4 @@
 import {
-  Banknote,
-  Building2,
-  ExternalLink,
-  Globe,
   MapPin,
   RotateCw,
   Sparkles,
@@ -10,7 +6,8 @@ import {
 import { Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
-import { CompanyLogo, MatchBadge, Tag } from '@/components/ui';
+import { SwipeBackground } from '@/components/SwipeBackground';
+import { CompanyLogo, Tag } from '@/components/ui';
 import { formatSalaryRange, sourceLabel } from '@/lib/format';
 import { explainMatch, summarizeMatch } from '@/lib/matchReasons';
 import type { Profile, RecommendedJob } from '@/lib/types';
@@ -23,77 +20,50 @@ interface Props {
 
 export function JobCardFront({ job, me }: Props) {
   const mine = new Set((me?.skills ?? []).map((s) => s.toLowerCase()));
-  const attribution = sourceLabel(job.source);
   const summary = summarizeMatch(explainMatch(job, me));
   return (
-    <View className="flex-1 p-6">
-      <View className="flex-row items-start justify-between">
-        <CompanyLogo uri={job.company_logo} name={job.company_name} size={64} />
-        <MatchBadge score={job.match_score_percentage} />
-      </View>
-
-      <Text className="mt-5 text-3xl font-extrabold leading-9 text-gray-900" numberOfLines={3}>
-        {job.title}
-      </Text>
-      <View className="mt-2 flex-row items-center">
-        <Building2 size={16} color="#6B7280" />
-        <Text className="ml-1.5 flex-1 text-base text-gray-600" numberOfLines={1}>
-          {job.company_name}
-        </Text>
-      </View>
-      {attribution ? (
-        <View className="mt-1 flex-row items-center">
-          <ExternalLink size={13} color="#9CA3AF" />
-          <Text className="ml-1.5 flex-1 text-xs font-medium text-gray-400" numberOfLines={1}>
-            {attribution} · swipe right to save, apply on their site
+    <View className="flex-1">
+      <SwipeBackground dark />
+      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24 }} showsVerticalScrollIndicator={false}>
+        <View className="flex-row items-start justify-between">
+          <CompanyLogo uri={job.company_logo} name={job.company_name} size={56} />
+          {job.match_score_percentage != null ? (
+            <View className="rounded-full bg-white/15 px-3 py-2">
+              <Text className="text-xs font-bold text-white">{Math.round(job.match_score_percentage)}% match</Text>
+            </View>
+          ) : null}
+        </View>
+        <View className="min-h-8 flex-1" />
+        <Text className="mb-2 text-xs font-semibold uppercase tracking-widest text-purple-200">YOUR NEXT MOVE</Text>
+        <Text className="text-3xl font-extrabold leading-9 text-white" numberOfLines={3}>{job.title}</Text>
+        <Text className="mt-2 text-lg font-medium text-purple-100" numberOfLines={1}>{job.company_name}</Text>
+        <View className="mt-4 flex-row items-center">
+          <MapPin size={15} color="#DDD6FE" />
+          <Text className="ml-2 flex-1 text-sm text-purple-100" numberOfLines={2}>
+            {[job.location, job.is_remote ? 'Remote' : 'On-site'].filter(Boolean).join(' · ')}
           </Text>
         </View>
-      ) : null}
-
-      <View className="mt-5 flex-row items-center rounded-2xl bg-green-50 px-4 py-3">
-        <Banknote size={20} color="#16A34A" />
-        <Text className="ml-2 text-lg font-bold text-green-700">
-          {formatSalaryRange(job.salary_min, job.salary_max)}
-        </Text>
-      </View>
-
-      {summary ? (
-        <View className="mt-3 flex-row items-center">
-          <Sparkles size={14} color="#6C47FF" />
-          <Text className="ml-1.5 flex-1 text-sm font-medium text-brand" numberOfLines={1}>
-            {summary}
-          </Text>
-        </View>
-      ) : null}
-
-      <View className="mt-4 flex-row flex-wrap">
-        <View className="mb-2 mr-2 flex-row items-center rounded-full bg-blue-50 px-3 py-1.5">
-          <Globe size={13} color="#2563EB" />
-          <Text className="ml-1 text-xs font-semibold text-blue-700">
-            {job.is_remote ? 'Remote' : 'On-site'}
-          </Text>
-        </View>
-        {job.location ? (
-          <View className="mb-2 mr-2 flex-row items-center rounded-full bg-gray-100 px-3 py-1.5">
-            <MapPin size={13} color="#374151" />
-            <Text className="ml-1 text-xs font-semibold text-gray-700">{job.location}</Text>
+        <Text className="mt-4 text-2xl font-bold text-white">{formatSalaryRange(job.salary_min, job.salary_max)}</Text>
+        {summary ? (
+          <View className="mt-3 flex-row items-center">
+            <Sparkles size={14} color="#DDD6FE" />
+            <Text className="ml-2 flex-1 text-sm text-purple-100" numberOfLines={2}>{summary}</Text>
           </View>
         ) : null}
-      </View>
-
-      <Text className="mb-2 mt-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
-        Skills
-      </Text>
-      <View className="flex-row flex-wrap">
-        {job.required_skills.slice(0, 8).map((s) => (
-          <Tag key={s} label={s} highlighted={mine.has(s.toLowerCase())} />
-        ))}
-      </View>
-
-      <View className="mt-auto flex-row items-center justify-center">
-        <RotateCw size={14} color="#9CA3AF" />
-        <Text className="ml-1.5 text-xs text-gray-400">Tap for full description</Text>
-      </View>
+        <View className="mt-5 flex-row flex-wrap">
+          {job.required_skills.slice(0, 3).map((skill) => (
+            <View key={skill} className={mine.has(skill.toLowerCase()) ? 'mb-2 mr-2 rounded-full border border-purple-300/50 bg-purple-300/20 px-3 py-1.5' : 'mb-2 mr-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5'}>
+              <Text className="text-xs font-medium text-white">{skill}</Text>
+            </View>
+          ))}
+          {job.required_skills.length > 3 ? <Text className="py-1.5 text-xs text-purple-200">+{job.required_skills.length - 3} more</Text> : null}
+        </View>
+        <View className="mt-3 flex-row items-center justify-between border-t border-white/15 pt-4">
+          <Text className="text-xs text-purple-200">{job.source !== 'jobswipe' ? 'Save now · apply on their site' : 'Find your next opportunity'}</Text>
+          <RotateCw size={15} color="#DDD6FE" />
+        </View>
+        <Text className="mt-3 text-center text-xs text-purple-200">Tap for details</Text>
+      </ScrollView>
     </View>
   );
 }

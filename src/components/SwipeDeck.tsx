@@ -186,7 +186,7 @@ function DeckCard<T>({
     // Horizontal intent activates the swipe; when flipped, vertical movement
     // fails it so the description ScrollView can scroll.
     activeOffsetX: [-12, 12],
-    failOffsetY: flipped ? [-14, 14] : undefined,
+    failOffsetY: [-14, 14],
     onUpdate: (e) => {
       'worklet';
       tx.set(e.translationX);
@@ -236,7 +236,8 @@ function DeckCard<T>({
     // Cards underneath scale up / rise as the top card is dragged away.
     const scale = interpolate(progress.value, [0, 1], [1 - index * 0.05, 1 - (index - 1) * 0.05]);
     const translateY = interpolate(progress.value, [0, 1], [index * 14, (index - 1) * 14]);
-    return { transform: [{ translateY }, { scale }] };
+    const rotate = interpolate(progress.value, [0, 1], [index % 2 ? -3 : 3, 0]);
+    return { transform: [{ translateY }, { scale }, { rotate: `${rotate}deg` }] };
   });
 
   const likeStyle = useAnimatedStyle(() => ({
@@ -290,10 +291,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     borderRadius: 24,
     backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
+    shadowColor: '#302958',
+    shadowOpacity: 0.25,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
     elevation: 6,
   },
   face: {

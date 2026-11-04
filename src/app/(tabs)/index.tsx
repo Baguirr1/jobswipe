@@ -8,6 +8,7 @@ import { EmptyFeed } from '@/components/EmptyFeed';
 import { activeFilterCount, FilterSheet, filterChips, NO_FILTERS } from '@/components/FilterSheet';
 import { JobCardBack, JobCardFront } from '@/components/JobCard';
 import { MatchModal } from '@/components/MatchModal';
+import { SwipeBackground } from '@/components/SwipeBackground';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/SwipeDeck';
 import { useSwipeQueue } from '@/hooks/useSwipeQueue';
 import { getRecommendedJobs, swipeJob, undoSwipe } from '@/lib/api';
@@ -101,9 +102,11 @@ export default function DiscoverScreen() {
   const topIsImported = !!top && top.source !== 'jobswipe';
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-purple-200" edges={['top']}>
+      <SwipeBackground />
+      <View style={{ flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' }}>
       <View className="flex-row items-center justify-between px-5 pb-3 pt-2">
-        <Text className="text-3xl font-black text-brand">JobSwipe</Text>
+        <View><Text className="text-3xl font-black tracking-tight text-gray-900">JobSwipe</Text><Text className="mt-1 text-sm text-gray-800">Your next move starts here.</Text></View>
         <View className="flex-row gap-2">
           <Pressable
             onPress={() => setFiltersOpen(true)}
@@ -159,7 +162,7 @@ export default function DiscoverScreen() {
         </Pressable>
       ) : null}
 
-      <View className="flex-1 px-4 pb-2">
+      <View className="flex-1 px-6 pb-7 pt-3" style={{ maxHeight: 620 }}>
         {feed.loading && feed.items.length === 0 ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color="#6C47FF" />
@@ -190,7 +193,7 @@ export default function DiscoverScreen() {
       </View>
 
       {(feed.items.length > 0 || feed.canUndo) && (
-        <View className="flex-row items-center justify-center gap-6 pb-6 pt-3">
+        <View className="flex-row items-center justify-center gap-6 pb-3 pt-2">
           <Pressable
             onPress={feed.undo}
             disabled={!feed.canUndo}
@@ -229,6 +232,8 @@ export default function DiscoverScreen() {
         </View>
       )}
 
+      {feed.items.length > 0 ? <Text className="pb-4 text-center text-xs font-medium text-gray-800">Swipe left to pass · right to {topIsImported ? 'save' : 'apply'}</Text> : null}
+      </View>
       <FilterSheet
         visible={filtersOpen}
         value={filters}
@@ -264,6 +269,7 @@ function ActionButton({
   onPress: () => void;
 }) {
   return (
+    <View className="items-center">
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
@@ -272,5 +278,7 @@ function ActionButton({
     >
       {icon}
     </Pressable>
+    <Text className="mt-2 text-xs font-semibold text-gray-800">{label}</Text>
+    </View>
   );
 }
