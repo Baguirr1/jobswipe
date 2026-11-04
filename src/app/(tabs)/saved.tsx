@@ -1,9 +1,10 @@
-import { useFocusEffect } from 'expo-router';
-import { Bookmark, Check, ChevronDown, ChevronUp, ExternalLink, Trash2 } from 'lucide-react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { Bookmark, Check, ChevronDown, ChevronUp, ExternalLink, MoreHorizontal, Trash2 } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 import { FlatList, Linking, Pressable, RefreshControl, Text, View } from 'react-native';
 
-import { CompanyLogo, Tag } from '@/components/ui';
+import { SectionHero } from '@/components/SectionHero';
+import { Button, CompanyLogo, Tag } from '@/components/ui';
 import { getSavedJobs, removeSavedJob, setSavedJobApplied } from '@/lib/api';
 import { formatSalaryRange, sourceLabel, timeAgo } from '@/lib/format';
 import { showAlert } from '@/lib/notify';
@@ -86,25 +87,28 @@ export default function SavedJobsScreen() {
   const rows = segment === 'todo' ? todo : applied;
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <View className="flex-row px-4 pt-3">
+    <View className="flex-1 bg-gray-50" style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
+      <FlatList
+        data={rows}
+        keyExtractor={(s) => s.job.id}
+        contentContainerClassName="flex-grow p-5"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor="#6C47FF" colors={['#6C47FF']} />}
+        ItemSeparatorComponent={() => <View className="h-4" />}
+        ListHeaderComponent={<>
+      <SectionHero eyebrow="MAKE YOUR NEXT MOVE" title="Your shortlist" subtitle="Keep the roles you love close. Apply when you’re ready." />
+      <View className="mb-5 flex-row rounded-2xl bg-brand-light p-1.5">
         <SegmentButton label={`To apply (${todo.length})`} selected={segment === 'todo'} onPress={() => setSegment('todo')} />
         <View className="w-2" />
         <SegmentButton label={`Applied (${applied.length})`} selected={segment === 'applied'} onPress={() => setSegment('applied')} />
       </View>
 
       {error ? (
-        <Pressable onPress={load} accessibilityRole="button" className="mx-4 mt-3 rounded-xl bg-red-50 px-4 py-3">
+        <Pressable onPress={load} accessibilityRole="button" className="mb-4 rounded-xl bg-red-50 px-4 py-3">
           <Text className="text-sm text-red-700">Couldn’t load saved jobs. Tap to try again.</Text>
         </Pressable>
       ) : null}
 
-      <FlatList
-        data={rows}
-        keyExtractor={(s) => s.job.id}
-        contentContainerClassName="flex-grow p-4"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
-        ItemSeparatorComponent={() => <View className="h-3" />}
+        </>}
         ListEmptyComponent={
           !loaded || error ? undefined : (
             <View className="flex-1 items-center justify-center px-8">
@@ -117,6 +121,7 @@ export default function SavedJobsScreen() {
                   ? 'Swipe right on listings from job boards to save them here.'
                   : 'After applying on the company’s site, tap “Mark applied” to track it here.'}
               </Text>
+              {segment === 'todo' ? <Button title="Discover jobs" onPress={() => router.navigate('/')} className="mt-6" /> : null}
             </View>
           )
         }
@@ -141,9 +146,9 @@ function SegmentButton({ label, selected, onPress }: { label: string; selected: 
       onPress={onPress}
       accessibilityRole="tab"
       accessibilityState={{ selected }}
-      className={`flex-1 items-center rounded-xl py-2.5 ${selected ? 'bg-brand' : 'bg-white'}`}
+      className={`flex-1 items-center min-h-12 justify-center rounded-xl px-2 py-2.5 ${selected ? 'bg-white shadow-sm' : 'bg-transparent'}`}
     >
-      <Text className={`text-sm font-semibold ${selected ? 'text-white' : 'text-gray-600'}`}>{label}</Text>
+      <Text className={`text-sm font-semibold ${selected ? 'text-brand-dark' : 'text-gray-600'}`}>{label}</Text>
     </Pressable>
   );
 }
@@ -163,10 +168,11 @@ function SavedJobRow({
   onToggleApplied: () => void;
   onRemove: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const { job } = item;
   const where = job.is_remote ? 'Remote' : job.location;
   return (
-    <View className="rounded-2xl bg-white p-4">
+    <View className="rounded-3xl border border-purple-100 bg-white p-5">
       <Pressable
         onPress={onToggleExpand}
         accessibilityRole="button"
@@ -174,9 +180,9 @@ function SavedJobRow({
         accessibilityLabel={`${job.title} at ${job.company_name}. ${expanded ? 'Hide' : 'Show'} details`}
         className="flex-row items-center"
       >
-        <CompanyLogo uri={job.company_logo} name={job.company_name} size={44} />
+        <CompanyLogo uri={job.company_logo} name={job.company_name} size={48} />
         <View className="ml-3 flex-1">
-          <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
+          <Text className="text-base font-bold text-gray-900" numberOfLines={2}>
             {job.title}
           </Text>
           <Text className="text-sm text-gray-500" numberOfLines={1}>
@@ -192,11 +198,9 @@ function SavedJobRow({
         {expanded ? <ChevronUp size={18} color="#9CA3AF" /> : <ChevronDown size={18} color="#9CA3AF" />}
       </Pressable>
 
+      <Text className="mt-4 text-lg font-bold text-gray-900">{formatSalaryRange(job.salary_min, job.salary_max)}</Text>
       {expanded ? (
-        <View className="mt-3">
-          <Text className="mb-2 text-sm font-semibold text-green-700">
-            {formatSalaryRange(job.salary_min, job.salary_max)}
-          </Text>
+        <View className="mt-3 border-t border-purple-50 pt-3">
           {job.required_skills.length ? (
             <View className="mb-1 flex-row flex-wrap">
               {job.required_skills.map((s) => (
@@ -210,13 +214,13 @@ function SavedJobRow({
         </View>
       ) : null}
 
-      <View className="mt-3 flex-row items-center">
+      <View className="mt-4 flex-row flex-wrap items-center gap-2">
         {job.apply_url ? (
           <Pressable
             onPress={() => onApply(job.apply_url!)}
             accessibilityRole="link"
             accessibilityLabel={`Apply to ${job.title} at ${job.company_name}`}
-            className="mr-2 flex-row items-center rounded-full bg-brand px-3 py-2 active:bg-brand-dark"
+            className="min-h-12 flex-row items-center justify-center rounded-2xl bg-brand px-5 py-3 active:bg-brand-dark"
           >
             <Text className="mr-1 text-sm font-semibold text-white">Apply</Text>
             <ExternalLink size={14} color="#fff" />
@@ -225,7 +229,7 @@ function SavedJobRow({
         <Pressable
           onPress={onToggleApplied}
           accessibilityRole="button"
-          className={`mr-2 flex-row items-center rounded-full px-3 py-2 ${
+          className={`min-h-12 flex-row items-center rounded-2xl px-3 py-3 ${
             item.applied_at ? 'bg-green-50' : 'bg-gray-100'
           }`}
         >
@@ -236,14 +240,20 @@ function SavedJobRow({
         </Pressable>
         <View className="flex-1" />
         <Pressable
-          onPress={onRemove}
+          onPress={() => setMenuOpen(!menuOpen)}
           accessibilityRole="button"
-          accessibilityLabel={`Remove ${job.title} from saved jobs`}
-          className="h-9 w-9 items-center justify-center rounded-full bg-gray-100"
+          accessibilityState={{ expanded: menuOpen }}
+          accessibilityLabel={`More actions for ${job.title}`}
+          className="h-12 w-12 items-center justify-center rounded-2xl bg-gray-50"
         >
-          <Trash2 size={16} color="#6B7280" />
+          <MoreHorizontal size={20} color="#6B7280" />
         </Pressable>
       </View>
+      {menuOpen ? (
+        <Pressable onPress={() => { setMenuOpen(false); onRemove(); }} accessibilityRole="button" accessibilityLabel={`Remove ${job.title} from saved jobs`} className="mt-3 min-h-12 flex-row items-center rounded-xl bg-red-50 px-4 py-3">
+          <Trash2 size={16} color="#B91C1C" /><Text className="ml-2 text-sm font-semibold text-red-700">Remove from saved</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

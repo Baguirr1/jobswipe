@@ -1,9 +1,10 @@
 import { router, useFocusEffect } from 'expo-router';
-import { HeartHandshake } from 'lucide-react-native';
+import { HeartHandshake, MessageCircle } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 
-import { Avatar, CompanyLogo } from '@/components/ui';
+import { SectionHero } from '@/components/SectionHero';
+import { Avatar, Button, CompanyLogo } from '@/components/ui';
 import { getMatches } from '@/lib/api';
 import { timeAgo } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -57,13 +58,16 @@ export default function MatchesScreen() {
   return (
     <FlatList
       className="flex-1 bg-gray-50"
-      contentContainerClassName="flex-grow p-4"
+      contentContainerClassName="flex-grow p-5"
+      contentContainerStyle={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}
       data={matches}
       keyExtractor={(m) => m.id}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor="#6C47FF" colors={['#6C47FF']} />}
       ItemSeparatorComponent={() => <View className="h-3" />}
-      ListHeaderComponent={
-        error ? (
+      ListHeaderComponent={<>
+        <SectionHero eyebrow="A CONNECTION WORTH MAKING" title="Good connections" subtitle={isRecruiter ? "Meet the people who could be your next great hire." : "You caught their eye. Start a conversation about your next move."} />
+        <Text accessibilityRole="header" className="mb-4 text-sm font-bold text-gray-700">Your matches · {matches.length}</Text>
+        {error ? (
           <Pressable
             onPress={load}
             accessibilityRole="button"
@@ -73,18 +77,19 @@ export default function MatchesScreen() {
               Couldn’t load your matches. Tap to try again.
             </Text>
           </Pressable>
-        ) : undefined
-      }
+        ) : null}
+      </>}
       ListEmptyComponent={
         refreshing || error ? undefined : (
           <View className="flex-1 items-center justify-center px-8">
-            <HeartHandshake size={56} color="#C4B5FD" />
+            <View className="h-24 w-24 items-center justify-center rounded-3xl bg-brand-light"><HeartHandshake size={44} color="#6C47FF" /></View>
             <Text className="mt-4 text-center text-lg font-semibold text-gray-800">No matches yet</Text>
             <Text className="mt-1 text-center text-gray-500">
               {isRecruiter
                 ? 'Review applicants on your jobs and swipe right on the ones you like.'
                 : 'Keep swiping — when a recruiter likes you back, you can chat here.'}
             </Text>
+            <Button title={isRecruiter ? "Review my jobs" : "Discover jobs"} onPress={() => router.navigate(isRecruiter ? '/jobs' : '/')} className="mt-6" />
           </View>
         )
       }
@@ -93,7 +98,9 @@ export default function MatchesScreen() {
         return (
           <Pressable
             onPress={() => router.push({ pathname: '/chat/[matchId]', params: { matchId: item.id } })}
-            className="flex-row items-center rounded-2xl bg-white p-4 active:opacity-80"
+            accessibilityRole="button"
+            accessibilityLabel={`Open conversation about ${item.job.title}`}
+            className="flex-row items-center rounded-3xl border border-purple-100 bg-white p-4 active:opacity-80"
           >
             {isRecruiter ? (
               <Avatar uri={other.avatar_url} name={other.full_name} size={52} />
@@ -104,12 +111,15 @@ export default function MatchesScreen() {
               <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
                 {isRecruiter ? other.full_name ?? 'Candidate' : item.job.company_name}
               </Text>
-              <Text className="text-sm text-gray-500" numberOfLines={1}>
+              <Text className="mt-1 text-sm text-gray-600" numberOfLines={2}>
                 {item.job.title}
                 {!isRecruiter && other.full_name ? ` · ${other.full_name}` : ''}
               </Text>
             </View>
-            <Text className="text-xs text-gray-400">{timeAgo(item.created_at)}</Text>
+            <View className="ml-3 items-end gap-2">
+              <Text className="text-xs text-gray-500">{timeAgo(item.created_at)}</Text>
+              <View className="h-9 w-9 items-center justify-center rounded-full bg-brand-light"><MessageCircle size={17} color="#6C47FF" /></View>
+            </View>
           </Pressable>
         );
       }}
