@@ -9,11 +9,11 @@ A "Tinder for jobs" mobile app. Candidates swipe on jobs ranked by AI similarity
 ### As a job seeker
 
 1. **Sign up.** On the sign-in screen, tap **New here? Create an account**, pick **Job seeker**, and enter your name, email and a password.
-2. **Set up your profile.** Onboarding asks for:
-   - your **skills** (tap tags to select them, or type your own),
-   - the **job title** you are aiming for,
-   - your **salary range** (two sliders),
-   - your **resume**: paste the text, or upload a `.txt` / `.md` file.
+2. **Set up your profile.** Onboarding walks you through four short steps:
+   1. your **name** and the **job title** you are aiming for,
+   2. your **skills** (some are pre-selected from your title; tap tags to change them, or type your own),
+   3. your **salary range** (tap a common range, or choose **Custom** for sliders),
+   4. your **resume** (optional): upload a PDF, Word (`.docx`) or `.txt` file, or paste the text.
 
    When you tap **Start swiping**, the app turns your profile into an AI embedding. This is what the match scores are based on.
 3. **Swipe on jobs** in the **Discover** tab. Jobs are sorted so your best match comes first.
@@ -69,6 +69,7 @@ Recruiter yes ──► rpc swipe_candidate┘ ───────────
 3. Deploy the embedding function. It uses Supabase's built-in `gte-small` model, so no API key is needed:
    ```bash
    npx supabase functions deploy embed
+   npx supabase functions deploy parse-resume   # PDF / Word resume uploads
    ```
 4. Turn off **Authentication → Sign In / Providers → Email → Confirm email**. Supabase's built-in email sender only delivers to members of your Supabase organization, so other people can't confirm their sign-ups while this is on.
 5. Apply `supabase/migrations/20261028000000_job_imports.sql` and then `20261028000001_gte_small_embeddings.sql` the same way as step 2. They add imported-job support and the gte-small score scale.
@@ -187,7 +188,7 @@ src/
 
 ## Notes and limits
 
-- Resume upload accepts `.txt` / `.md`. For PDFs, paste the text. Server-side PDF extraction would be a good next step.
+- Resume upload reads PDF and `.docx` through the `parse-resume` Edge Function. Scanned (image-only) PDFs have no text to extract, so those users need to paste their resume.
 - Roles are fixed at signup (a trigger enforces this). Use a second account to test the other side.
 - Swipe and match writes go only through `security definer` RPCs. RLS blocks direct inserts into `swipes`, `recruiter_swipes` and `matches`.
 

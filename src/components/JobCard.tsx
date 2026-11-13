@@ -120,8 +120,8 @@ function WhyThisMatch({
       </Text>
       <Text className="mb-3 text-sm text-gray-700">
         {score != null
-          ? `${Math.round(score)}% is how closely your profile text matches this job's description, scored by an AI embedding model.`
-          : 'No AI score yet: this job or your profile is still being processed.'}
+          ? `${Math.round(score)}% match, based on how closely your resume, skills and target role line up with this job's description.`
+          : 'We’re still working out how well this job fits you. Check back in a minute.'}
       </Text>
       {reasons.have.length > 0 ? (
         <>
