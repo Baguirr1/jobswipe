@@ -1,10 +1,12 @@
-import { FileUp, Sparkles } from 'lucide-react-native';
+import { Check, FileUp, Sparkles } from 'lucide-react-native';
+import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { SalaryPresets } from '@/components/SalaryPresets';
 import { SkillSelector } from '@/components/SkillSelector';
 import { Button, Field } from '@/components/ui';
 import { type ProfileDraft, useProfileDraft } from '@/hooks/useProfileDraft';
+import type { ResumeSuggestions } from '@/lib/resumeExtract';
 import type { Profile } from '@/lib/types';
 
 /** Single-page profile editor (Edit profile, and recruiter onboarding). */
@@ -103,6 +105,21 @@ export function ResumeField({ draft }: { draft: ProfileDraft }) {
         onChangeText={draft.setResume}
         multiline
       />
+      {draft.isCandidate && (draft.suggestions ? (
+        <ResumeSuggestionsCard key={JSON.stringify(draft.suggestions)} draft={draft} suggestions={draft.suggestions} />
+      ) : draft.resume.trim() ? (
+        <Pressable
+          onPress={() => draft.suggestFromResume()}
+          accessibilityRole="button"
+          className="mb-3 min-h-11 flex-row items-center"
+        >
+          <Sparkles size={16} color="#6C47FF" />
+          <Text className="ml-2 flex-1 text-sm font-semibold text-brand">Fill in my profile from this resume</Text>
+        </Pressable>
+      ) : null)}
+      {draft.isCandidate && draft.appliedNote ? (
+        <Text className="mb-3 text-sm text-green-700">{draft.appliedNote}</Text>
+      ) : null}
       <View className="mb-6 flex-row items-start rounded-xl bg-brand-light p-3">
         <Sparkles size={16} color="#6C47FF" />
         <Text className="ml-2 flex-1 text-xs text-brand">
@@ -111,6 +128,65 @@ export function ResumeField({ draft }: { draft: ProfileDraft }) {
         </Text>
       </View>
     </View>
+  );
+}
+
+function ResumeSuggestionsCard({ draft, suggestions }: { draft: ProfileDraft; suggestions: ResumeSuggestions }) {
+  const [title, setTitle] = useState(!draft.targetTitle.trim());
+  const [skills, setSkills] = useState(suggestions.skills);
+  const [summary, setSummary] = useState(!draft.bio.trim());
+
+  return (
+    <View className="mb-4 rounded-2xl bg-brand-light p-4">
+      <View className="mb-2 flex-row items-center">
+        <Sparkles size={18} color="#6C47FF" />
+        <Text className="ml-2 text-base font-semibold text-brand">From your resume</Text>
+      </View>
+      {suggestions.title ? (
+        <SuggestionCheckbox checked={title} onPress={() => setTitle(!title)} label={`Set job title to “${suggestions.title}”`} />
+      ) : null}
+      {suggestions.skills.length ? (
+        <View className="my-2">
+          <Text className="mb-2 text-sm font-medium text-gray-700">Add skills</Text>
+          <View className="flex-row flex-wrap">
+            {suggestions.skills.map((skill) => {
+              const checked = skills.includes(skill);
+              return (
+                <Pressable
+                  key={skill}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked }}
+                  accessibilityLabel={skill}
+                  onPress={() => setSkills((current) => checked ? current.filter((item) => item !== skill) : [...current, skill])}
+                  className={`mb-2 mr-2 min-h-11 justify-center rounded-full border px-3 py-2 ${checked ? 'border-brand bg-brand' : 'border-gray-200 bg-white'}`}
+                >
+                  <Text className={`text-sm ${checked ? 'text-white' : 'text-gray-700'}`}>{skill}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+      {suggestions.summary ? (
+        <View className="mb-3">
+          <SuggestionCheckbox checked={summary} onPress={() => setSummary(!summary)} label="Use your summary as your bio" />
+          <Text className="ml-8 text-sm text-gray-600" numberOfLines={2}>{suggestions.summary}</Text>
+        </View>
+      ) : null}
+      <Button title="Add to profile" onPress={() => draft.applySuggestions({ title, skills, summary })} />
+      <Button title="No thanks" variant="ghost" onPress={draft.dismissSuggestions} />
+    </View>
+  );
+}
+
+function SuggestionCheckbox({ checked, onPress, label }: { checked: boolean; onPress: () => void; label: string }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked }} accessibilityLabel={label} className="min-h-11 flex-row items-center py-2">
+      <View className={`mr-3 h-5 w-5 items-center justify-center rounded border ${checked ? 'border-brand bg-brand' : 'border-gray-300 bg-white'}`}>
+        {checked ? <Check size={14} color="#fff" /> : null}
+      </View>
+      <Text className="flex-1 text-sm text-gray-900">{label}</Text>
+    </Pressable>
   );
 }
 

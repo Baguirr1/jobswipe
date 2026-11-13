@@ -4,6 +4,7 @@ import { updateProfile } from '@/lib/api';
 import { embedMyProfile } from '@/lib/embeddings';
 import { showAlert } from '@/lib/notify';
 import { pickResumeText } from '@/lib/resume';
+import { extractFromResume, type ResumeSuggestions } from '@/lib/resumeExtract';
 import type { Profile } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -25,6 +26,59 @@ export function useProfileDraft(profile: Profile) {
   const [resume, setResume] = useState(profile.resume_text ?? '');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [suggestions, setSuggestions] = useState<ResumeSuggestions | null>(null);
+  const [appliedNote, setAppliedNote] = useState<string | null>(null);
+
+  const suggestFromResume = (text = resume) => {
+    if (!isCandidate) return;
+    const extracted = extractFromResume(text);
+    const normalize = (value: string) => value.trim().toLowerCase();
+    const existingSkills = new Set(skills.map(normalize));
+    const next = {
+      title: extracted.title?.trim() && normalize(extracted.title) !== normalize(targetTitle)
+        ? extracted.title.trim() : null,
+      skills: extracted.skills.filter((skill) => !existingSkills.has(normalize(skill))),
+      summary: extracted.summary?.trim() && extracted.summary !== bio ? extracted.summary : null,
+    };
+    const hasSuggestions = !!(next.title || next.skills.length || next.summary);
+    setSuggestions(hasSuggestions ? next : null);
+    setAppliedNote(hasSuggestions ? null : 'No new details found in your resume.');
+  };
+
+  const applySuggestions = (choice: { title: boolean; skills: string[]; summary: boolean }) => {
+    if (!isCandidate || !suggestions) return;
+    const changes: string[] = [];
+    const normalize = (value: string) => value.trim().toLowerCase();
+    const nextSkills = [...skills];
+    const seen = new Set(skills.map(normalize));
+    for (const skill of suggestions.skills) {
+      if (choice.skills.includes(skill) && skill.trim() && !seen.has(normalize(skill)) && nextSkills.length < 15) {
+        nextSkills.push(skill.trim());
+        seen.add(normalize(skill));
+      }
+    }
+    const added = nextSkills.length - skills.length;
+    if (added) {
+      setSkills(nextSkills);
+      changes.push(`${added} ${added === 1 ? 'skill' : 'skills'}`);
+    }
+    if (choice.title && suggestions.title && suggestions.title !== targetTitle) {
+      setTargetTitle(suggestions.title);
+      changes.push('your job title');
+    }
+    const summary = suggestions.summary?.slice(0, 500);
+    if (choice.summary && summary && summary !== bio) {
+      setBio(summary);
+      changes.push('your summary');
+    }
+    const details = changes.length > 1
+      ? `${changes.slice(0, -1).join(', ')} and ${changes[changes.length - 1]}`
+      : changes[0];
+    setSuggestions(null);
+    setAppliedNote(details ? `Added ${details} to your profile.` : 'Nothing changed.');
+  };
+
+  const dismissSuggestions = () => setSuggestions(null);
 
   const setSalary = (lo: number, hi: number) => {
     setSalaryMin(lo);
@@ -35,7 +89,10 @@ export function useProfileDraft(profile: Profile) {
     setUploading(true);
     try {
       const text = await pickResumeText();
-      if (text != null) setResume(text);
+      if (text != null) {
+        setResume(text);
+        suggestFromResume(text);
+      }
     } catch (e) {
       showAlert('Couldn’t read that file', (e as Error).message);
     } finally {
@@ -100,6 +157,7 @@ export function useProfileDraft(profile: Profile) {
     bio, setBio,
     resume, setResume,
     uploadResume, uploading,
+    suggestions, appliedNote, suggestFromResume, applySuggestions, dismissSuggestions,
     problems, firstProblem,
     save, saving,
   };
