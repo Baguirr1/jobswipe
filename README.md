@@ -83,6 +83,10 @@ The `import-jobs` Edge Function pulls current listings from public job APIs, sco
 | --- | --- | --- |
 | [Adzuna](https://developer.adzuna.com) | Free App ID + key | US (or any country) jobs, searchable by keyword and city, with salaries |
 | [Arbeitnow](https://www.arbeitnow.com/blog/job-board-api) | None | A few dozen remote, English-language jobs |
+| Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Personio | None | Internships, co-ops, new-grad, entry-level and part-time roles (US or remote) straight from employers' public job boards. The boards pulled are listed in `supabase/functions/_shared/ats-companies.ts` |
+| [USAJOBS](https://developer.usajobs.gov/) | Free key + your registered email | Federal internships and student / recent-graduate roles |
+
+The employer boards are not part of the default run (which stays Adzuna + Arbeitnow). Pull them in their own scheduled runs by sending `{"sources": ["greenhouse"]}` (etc.) as the body; see step 4. For USAJOBS, run `npx supabase secrets set USAJOBS_API_KEY=xxxx USAJOBS_EMAIL=you@example.com` in your own terminal, then add a run with `{"sources": ["usajobs"]}`. A listing that already exists under another source (same company, title and location) is skipped, so nothing is duplicated.
 
 1. Sign up at developer.adzuna.com and set your keys. Run this in your own terminal so the key stays private:
    ```bash

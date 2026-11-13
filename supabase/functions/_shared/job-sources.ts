@@ -8,7 +8,7 @@
 // Remotive's public API is intentionally not used: its terms forbid showing
 // listings behind a sign-up, which JobSwipe requires.
 
-export type JobSource = 'adzuna' | 'arbeitnow';
+export type JobSource = 'adzuna' | 'arbeitnow' | 'greenhouse' | 'lever' | 'ashby' | 'smartrecruiters' | 'recruitee' | 'personio' | 'usajobs';
 
 export interface ImportedJob {
   source: JobSource;
@@ -227,13 +227,333 @@ export function normalizeArbeitnow(r: ArbeitnowResult): ImportedJob | null {
   };
 }
 
-/** Keep the first copy of each (source, external_id). */
+/** Keep the preferred provider, preserving the relative order of surviving jobs. */
 export function dedupeJobs(jobs: ImportedJob[]): ImportedJob[] {
   const seen = new Set<string>();
-  return jobs.filter((j) => {
+  const unique = jobs.filter((j) => {
     const key = `${j.source}:${j.external_id}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+  const priority: JobSource[] = ['greenhouse', 'lever', 'ashby', 'smartrecruiters', 'recruitee', 'personio', 'usajobs', 'arbeitnow', 'adzuna'];
+  const winners = new Map<string, ImportedJob>();
+  for (const job of unique) {
+    const key = jobFingerprint(job);
+    const previous = winners.get(key);
+    if (!previous || priority.indexOf(job.source) < priority.indexOf(previous.source)) winners.set(key, job);
+  }
+  return unique.filter(job => winners.get(jobFingerprint(job)) === job);
+}
+
+// ---------- Shared ATS helpers ----------
+
+export interface AtsOptions {
+  earlyCareerOnly?: boolean;
+  usOnly?: boolean;
+}
+
+// Only intern/internship overrides a senior word ("Senior Intern" is still an
+// internship); "co-op" doesn't, so "Staff Analyst – Condo, Co-op Review" is out.
+const INTERN = /\bintern\b|\binterns?hips?\b/i;
+const SENIOR = /\b(?:senior|sr\.?|staff|principal|lead|manager|director|vp)\b|\bhead of\b/i;
+// Jobs *about* students or campuses ("University Recruiter") aren't student jobs.
+const ABOUT_STUDENTS = /recruit|talent acquisition|professor|faculty|lecturer|instructor|teacher/i;
+const EARLY = /\bintern\b|\binterns?hips?\b|\bco-?op\b|\bnew[ -]grad|\bentry[- _]level\b|\bjunior\b|\bjr\.?\b|apprentic|part[- _]?time|\bstudent|early[- _]career|university|campus|rotational|graduate|\bsummer (?:analyst|associate)\b/i;
+
+export function isEarlyCareer(title: string, hints = ''): boolean {
+  if ((SENIOR.test(title) || ABOUT_STUDENTS.test(title)) && !INTERN.test(title)) return false;
+  return EARLY.test(`${title} ${hints}`);
+}
+
+const US_STATES = /\b(?:Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming|District of Columbia)\b/i;
+const US_ABBREVIATIONS = /,\s*(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\b/i;
+const NON_US = /\b(?:UK|U\.?K\.?|United Kingdom|EMEA|Europe|European|EU|India|Canada|Canadian|LATAM|APAC|Germany|German|Australia|Australian|Asia|Africa|France|French|Spain|Netherlands|Ireland|Singapore|Brazil|Mexico|China|Japan|New Zealand|Middle East|South America|Latin America|Poland|Portugal|Italy|Sweden|Switzerland|Austria|Belgium|Denmark|Norway|Finland|Israel|Philippines|Pakistan|Bangladesh|Indonesia|Malaysia|Vietnam|Korea|Taiwan|Hong Kong|London|Berlin|Toronto|Vancouver)\b/i;
+
+export function isUsOrRemote(location: string | null, opts: { remote?: boolean; country?: string | null } = {}): boolean {
+  // A structured country field beats parsing the location string.
+  const country = opts.country?.trim();
+  if (country) return /^(us|usa|united states)$/i.test(country);
+  const text = location?.trim() ?? '';
+  if (/\bUnited States\b|\bUSA\b|\bU\.S\.(?:A\.)?|\bUS\b/i.test(text) || US_STATES.test(text)) return true;
+  // Before the ", XX" check: "Barcelona, CT, Spain" is Catalonia, not Connecticut.
+  if (NON_US.test(text)) return false;
+  if (US_ABBREVIATIONS.test(text)) return true;
+  if (!text) return true;
+  return opts.remote === true || /\bremote\b|\banywhere\b/i.test(text);
+}
+
+export function jobFingerprint(j: ImportedJob): string {
+  const normalize = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().replace(/\s+/g, ' ');
+  const company = normalize(j.company_name).replace(/\b(?:inc|llc|ltd|corp|gmbh)\b/g, '').trim().replace(/\s+/g, ' ');
+  return `${company}|${normalize(j.title)}|${normalize((j.location ?? '').split(/[,;|]/)[0])}`;
+}
+
+// Context is supplied separately from the URL so credentials never appear in errors.
+export interface JobRequestInit extends RequestInit { provider?: string; company?: string; timeoutMs?: number }
+
+export async function fetchText(url: string, init: JobRequestInit = {}): Promise<string> {
+  // The timeout also covers reading the body, so large boards need more time.
+  const { provider = 'Jobs', company = '', timeoutMs = 15000, ...request } = init;
+  const headers = new Headers(request.headers);
+  if (!headers.has('Accept')) headers.set('Accept', 'text/plain, application/xml, text/xml');
+  const response = await fetch(url, { ...request, headers, signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok) throw new Error(`${provider} ${company} request failed (${response.status})`);
+  return response.text();
+}
+
+export async function fetchJson<T = unknown>(url: string, init: JobRequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+  return JSON.parse(await fetchText(url, { ...init, headers })) as T;
+}
+
+function decodeEntities(text: string): string {
+  return text.replace(/&(#\d+|#x[\da-f]+|\w+);/gi, (match, entity: string) => {
+    if (entity[0] !== '#') return ENTITIES[entity.toLowerCase()] ?? match;
+    const code = entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
+    return Number.isFinite(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+  });
+}
+
+function prettify(company: string): string {
+  return company.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function eligible(title: string, hints: string, location: string | null, remote: boolean, country: string | null | undefined, opts: AtsOptions): boolean {
+  // German-language ads ("(m/w/d)") match English profiles poorly; same rule as Arbeitnow.
+  return !!title.trim() && !GERMAN_AD.test(title) &&
+    (opts.earlyCareerOnly === false || isEarlyCareer(title, hints)) &&
+    (opts.usOnly === false || isUsOrRemote(location, { remote, country }));
+}
+
+function makeJob(source: JobSource, company: string, id: string | number | undefined, title: string, url: string | undefined,
+  description: string, location: string | null, remote: boolean, companyName?: string,
+  salary: [number | null, number | null] = [null, null]): ImportedJob | null {
+  if (id == null || id === '' || !title.trim() || !url) return null;
+  return {
+    source, external_id: `${company}:${id}`, apply_url: url, title: title.trim(),
+    company_name: companyName?.trim() || prettify(company), description, location,
+    is_remote: remote, salary_min: salary[0], salary_max: salary[1],
+    required_skills: extractSkills(`${title}\n${description}`),
+  };
+}
+
+function add(jobs: ImportedJob[], job: ImportedJob | null): void { if (job) jobs.push(job); }
+function annual(interval?: string): boolean { return /^(?:annual(?:ly)?|year(?:ly)?|per[- ]year(?:-salary)?|1 year)$/i.test(interval?.trim() ?? ''); }
+
+// ---------- Greenhouse ----------
+export interface GreenhouseResult {
+  id: string | number; title: string; absolute_url?: string; location?: { name?: string };
+  content?: string; company_name?: string; metadata?: { name?: string; value?: unknown }[];
+}
+export function normalizeGreenhouse(r: GreenhouseResult, company: string, opts: AtsOptions = {}): ImportedJob | null {
+  const location = r.location?.name?.trim() || null;
+  const remote = /remote/i.test(`${location ?? ''} ${r.title}`);
+  const hints = (r.metadata ?? []).map(m => typeof m.value === 'string' ? m.value : Array.isArray(m.value) ? m.value.join(' ') : '').join(' ');
+  if (!eligible(r.title, hints, location, remote, undefined, opts)) return null;
+  return makeJob('greenhouse', company, r.id, r.title, r.absolute_url, htmlToText(decodeEntities(r.content ?? '')), location, remote, r.company_name);
+}
+const GREENHOUSE_MAX_DETAILS = 60;
+
+/**
+ * Lists the board without descriptions (?content=true is 32 MB for SpaceX,
+ * which blows the Edge Function CPU limit), filters on title/location/metadata,
+ * then fetches the description only for the jobs that pass.
+ */
+export async function fetchGreenhouse(company: string, opts: AtsOptions = {}): Promise<ImportedJob[]> {
+  const base = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(company)}/jobs`;
+  const body = await fetchJson<{ jobs?: GreenhouseResult[] }>(base, { provider: 'Greenhouse', company, timeoutMs: 30000 });
+  const matches = (body.jobs ?? [])
+    .filter(r => normalizeGreenhouse({ ...r, content: '' }, company, opts) !== null)
+    .slice(0, GREENHOUSE_MAX_DETAILS);
+  const jobs: ImportedJob[] = [];
+  for (const r of matches) {
+    try {
+      const detail = await fetchJson<GreenhouseResult>(`${base}/${encodeURIComponent(String(r.id))}`, { provider: 'Greenhouse', company });
+      add(jobs, normalizeGreenhouse({ ...r, content: detail.content }, company, opts));
+    } catch {
+      // A posting closed between the list and detail calls: skip it.
+    }
+  }
+  return jobs;
+}
+
+// ---------- Lever ----------
+export interface LeverResult {
+  id: string; text: string; hostedUrl?: string; applyUrl?: string; company_name?: string;
+  categories?: { location?: string; commitment?: string; team?: string; allLocations?: string[] };
+  workplaceType?: string; country?: string; descriptionPlain?: string;
+  lists?: { text?: string; content?: string }[]; additionalPlain?: string;
+  salaryRange?: { min?: number; max?: number; interval?: string };
+}
+export function normalizeLever(r: LeverResult, company: string, opts: AtsOptions = {}): ImportedJob | null {
+  const location = r.categories?.allLocations?.join('; ') || r.categories?.location?.trim() || null;
+  const remote = r.workplaceType === 'remote' || /remote/i.test(`${location ?? ''} ${r.text}`);
+  if (!eligible(r.text, r.categories?.commitment ?? '', location, remote, r.country, opts)) return null;
+  const description = [r.descriptionPlain, ...(r.lists ?? []).map(l => `${l.text ?? ''}\n${htmlToText(l.content ?? '')}`), r.additionalPlain].filter(Boolean).join('\n\n').slice(0, MAX_DESCRIPTION_CHARS);
+  const salary = r.salaryRange;
+  return makeJob('lever', company, r.id, r.text, r.hostedUrl, description, location, remote, r.company_name,
+    annual(salary?.interval) ? normalizeSalary(salary?.min, salary?.max) : [null, null]);
+}
+export async function fetchLever(company: string, opts: AtsOptions = {}): Promise<ImportedJob[]> {
+  const jobs: ImportedJob[] = [];
+  for (let page = 0; page < 10; page++) {
+    const rows = await fetchJson<LeverResult[]>(`https://api.lever.co/v0/postings/${encodeURIComponent(company)}?mode=json&skip=${page * 100}&limit=100`, { provider: 'Lever', company, timeoutMs: 45000 });
+    for (const row of rows) add(jobs, normalizeLever(row, company, opts));
+    if (rows.length < 100) break;
+  }
+  return jobs;
+}
+
+// ---------- Ashby ----------
+export interface AshbyResult {
+  id: string; title: string; location?: string; secondaryLocations?: { location?: string }[];
+  isRemote?: boolean; workplaceType?: string; employmentType?: string; isListed?: boolean;
+  jobUrl?: string; applyUrl?: string; descriptionPlain?: string; descriptionHtml?: string; company_name?: string;
+  address?: { postalAddress?: { addressCountry?: string } };
+  compensation?: { summaryComponents?: { compensationType?: string; interval?: string; minValue?: number; maxValue?: number }[] };
+}
+export function normalizeAshby(r: AshbyResult, company: string, opts: AtsOptions = {}): ImportedJob | null {
+  if (r.isListed === false) return null;
+  const location = [r.location, ...(r.secondaryLocations ?? []).map(l => l.location)].filter(Boolean).join('; ') || null;
+  const remote = r.isRemote === true || /^remote$/i.test(r.workplaceType ?? '') || /remote/i.test(`${location ?? ''} ${r.title}`);
+  if (!eligible(r.title, r.employmentType ?? '', location, remote, r.address?.postalAddress?.addressCountry, opts)) return null;
+  const salary = r.compensation?.summaryComponents?.find(c => c.compensationType === 'Salary' && annual(c.interval));
+  return makeJob('ashby', company, r.id, r.title, r.jobUrl, r.descriptionPlain?.slice(0, MAX_DESCRIPTION_CHARS) || htmlToText(r.descriptionHtml ?? ''), location, remote, r.company_name,
+    salary ? normalizeSalary(salary.minValue, salary.maxValue) : [null, null]);
+}
+export async function fetchAshby(company: string, opts: AtsOptions = {}): Promise<ImportedJob[]> {
+  const body = await fetchJson<{ jobs?: AshbyResult[] }>(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(company)}?includeCompensation=true`, { provider: 'Ashby', company });
+  return (body.jobs ?? []).map(r => normalizeAshby(r, company, opts)).filter((j): j is ImportedJob => j !== null);
+}
+
+// ---------- SmartRecruiters ----------
+export interface SmartRecruitersResult {
+  id: string; name: string; location?: { city?: string; region?: string; country?: string; remote?: boolean; fullLocation?: string };
+  experienceLevel?: { id?: string; label?: string }; typeOfEmployment?: { label?: string };
+  company?: { name?: string; identifier?: string }; postingUrl?: string;
+  jobAd?: { sections?: { companyDescription?: { text?: string }; jobDescription?: { text?: string }; qualifications?: { text?: string }; additionalInformation?: { text?: string } } };
+}
+function smartFields(r: SmartRecruitersResult) {
+  const l = r.location;
+  const location = l?.fullLocation || [l?.city, l?.region, l?.country].filter(Boolean).join(', ') || null;
+  return { location, remote: l?.remote === true || /remote/i.test(`${location ?? ''} ${r.name}`), hints: `${r.experienceLevel?.id ?? ''} ${r.experienceLevel?.label ?? ''} ${r.typeOfEmployment?.label ?? ''}` };
+}
+export function normalizeSmartRecruiters(r: SmartRecruitersResult, company: string, opts: AtsOptions = {}): ImportedJob | null {
+  const { location, remote, hints } = smartFields(r);
+  if (!eligible(r.name, hints, location, remote, r.location?.country, opts)) return null;
+  const sections = r.jobAd?.sections;
+  const description = htmlToText([sections?.companyDescription?.text, sections?.jobDescription?.text, sections?.qualifications?.text, sections?.additionalInformation?.text].filter(Boolean).join('\n\n'));
+  return makeJob('smartrecruiters', company, r.id, r.name, r.postingUrl || `https://jobs.smartrecruiters.com/${encodeURIComponent(company)}/${encodeURIComponent(r.id)}`, description, location, remote, r.company?.name);
+}
+export async function fetchSmartRecruiters(company: string, opts: AtsOptions = {}): Promise<ImportedJob[]> {
+  const jobs: ImportedJob[] = [];
+  const base = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(company)}/postings`;
+  const seen = new Set<string>();
+  let details = 0;
+  for (let page = 0; page < 10; page++) {
+    const body = await fetchJson<{ totalFound?: number; content?: SmartRecruitersResult[] }>(`${base}?limit=100&offset=${page * 100}`, { provider: 'SmartRecruiters', company });
+    const rows = body.content ?? [];
+    for (const row of rows) {
+      const { location, remote, hints } = smartFields(row);
+      if (seen.has(row.id) || !eligible(row.name, hints, location, remote, row.location?.country, opts)) continue;
+      if (details >= 40) return jobs;
+      seen.add(row.id);
+      details++;
+      const detail = await fetchJson<Partial<SmartRecruitersResult>>(`${base}/${encodeURIComponent(row.id)}`, { provider: 'SmartRecruiters', company });
+      add(jobs, normalizeSmartRecruiters({ ...row, ...detail }, company, opts));
+    }
+    if (!rows.length || (body.totalFound != null ? (page + 1) * 100 >= body.totalFound : rows.length < 100)) break;
+  }
+  return jobs;
+}
+
+// ---------- Recruitee ----------
+export interface RecruiteeResult {
+  id: string | number; slug?: string; title: string; status?: string; company_name?: string;
+  location?: string; city?: string; country?: string; country_code?: string; remote?: boolean;
+  careers_url?: string; description?: string; requirements?: string; employment_type_code?: string; experience_code?: string;
+  salary?: { min?: number; max?: number; period?: string };
+}
+export function normalizeRecruitee(r: RecruiteeResult, company: string, opts: AtsOptions = {}): ImportedJob | null {
+  if (r.status && r.status !== 'published') return null;
+  const location = r.location || [r.city, r.country].filter(Boolean).join(', ') || null;
+  const remote = r.remote === true || /remote/i.test(`${location ?? ''} ${r.title}`);
+  if (!eligible(r.title, `${r.employment_type_code ?? ''} ${r.experience_code ?? ''}`, location, remote, r.country_code || r.country, opts)) return null;
+  return makeJob('recruitee', company, r.id, r.title, r.careers_url || (r.slug ? `https://${company}.recruitee.com/o/${encodeURIComponent(r.slug)}` : undefined), htmlToText(`${r.description ?? ''}\n${r.requirements ?? ''}`), location, remote, r.company_name,
+    annual(r.salary?.period) ? normalizeSalary(r.salary?.min, r.salary?.max) : [null, null]);
+}
+export async function fetchRecruitee(company: string, opts: AtsOptions = {}): Promise<ImportedJob[]> {
+  const body = await fetchJson<{ offers?: RecruiteeResult[] }>(`https://${encodeURIComponent(company)}.recruitee.com/api/offers/`, { provider: 'Recruitee', company });
+  return (body.offers ?? []).map(r => normalizeRecruitee(r, company, opts)).filter((j): j is ImportedJob => j !== null);
+}
+
+// ---------- Personio (no DOM or runtime-specific XML dependencies) ----------
+function xmlTag(xml: string, tag: string): string {
+  return new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}\\s*>`, 'i').exec(xml)?.[1] ?? '';
+}
+function xmlText(value: string): string {
+  // CDATA is already literal; decode only text outside CDATA sections.
+  return value.split(/(<!\[CDATA\[[\s\S]*?\]\]>)/g).map(part => part.startsWith('<![CDATA[') ? part.slice(9, -3) : decodeEntities(part)).join('').trim();
+}
+export function normalizePersonio(positionXml: string, company: string, opts: AtsOptions = {}): ImportedJob | null {
+  const field = (name: string) => xmlText(xmlTag(positionXml, name));
+  const title = field('name');
+  const location = field('office') || null;
+  const remote = /remote/i.test(`${location ?? ''} ${title}`);
+  if (!eligible(title, `${field('seniority')} ${field('employmentType')} ${field('schedule')}`, location, remote, undefined, opts)) return null;
+  const descriptions = xmlTag(positionXml, 'jobDescriptions').match(/<jobDescription\b[^>]*>[\s\S]*?<\/jobDescription\s*>/gi) ?? [];
+  const description = htmlToText(descriptions.map(d => `${xmlText(xmlTag(d, 'name'))}\n${xmlText(xmlTag(d, 'value'))}`).join('\n\n'));
+  const id = field('id');
+  return makeJob('personio', company, id, title, id ? `https://${company}.jobs.personio.de/job/${encodeURIComponent(id)}` : undefined, description, location, remote, field('subcompany'));
+}
+export async function fetchPersonio(company: string, opts: AtsOptions = {}): Promise<ImportedJob[]> {
+  const xml = await fetchText(`https://${encodeURIComponent(company)}.jobs.personio.de/xml?language=en`, { provider: 'Personio', company });
+  const jobs: ImportedJob[] = [];
+  for (const match of xml.matchAll(/<position\b[^>]*>([\s\S]*?)<\/position\s*>/gi)) add(jobs, normalizePersonio(match[1], company, opts));
+  return jobs;
+}
+
+// ---------- USAJOBS ----------
+export interface UsaJobsOptions { apiKey: string; userAgentEmail: string; keywords?: string[]; pages?: number }
+export interface UsaJobsResult {
+  MatchedObjectId: string;
+  MatchedObjectDescriptor: {
+    PositionTitle: string; PositionURI?: string; ApplyURI?: string[]; OrganizationName?: string; DepartmentName?: string;
+    PositionLocationDisplay?: string; PositionRemuneration?: { MinimumRange?: string; MaximumRange?: string; RateIntervalCode?: string }[];
+    QualificationSummary?: string; UserArea?: { Details?: { JobSummary?: string } };
+  };
+}
+export function normalizeUsaJobs(r: UsaJobsResult, hiringPath = false): ImportedJob | null {
+  const d = r.MatchedObjectDescriptor;
+  if (!hiringPath && !isEarlyCareer(d.PositionTitle)) return null;
+  const location = d.PositionLocationDisplay || null;
+  const remote = /remote|anywhere/i.test(`${location ?? ''} ${d.PositionTitle}`);
+  const salary = d.PositionRemuneration?.find(s => s.RateIntervalCode === 'PA');
+  const job = makeJob('usajobs', '', r.MatchedObjectId, d.PositionTitle, d.PositionURI,
+    htmlToText(`${d.UserArea?.Details?.JobSummary ?? ''}\n${d.QualificationSummary ?? ''}`), location, remote,
+    d.OrganizationName || d.DepartmentName || 'US Government', salary ? normalizeSalary(salary.MinimumRange, salary.MaximumRange) : [null, null]);
+  if (job) job.external_id = r.MatchedObjectId;
+  return job;
+}
+export async function fetchUsaJobs(opts: UsaJobsOptions): Promise<ImportedJob[]> {
+  const jobs: ImportedJob[] = [];
+  const pages = Math.max(0, Math.floor(opts.pages ?? 1));
+  for (const keyword of opts.keywords ?? ['intern', 'student trainee', 'recent graduate']) {
+    for (const hiringPath of [true, false]) {
+      for (let page = 1; page <= pages; page++) {
+        const params = new URLSearchParams({ Keyword: keyword, ResultsPerPage: '250', Page: String(page) });
+        if (hiringPath) params.set('HiringPath', 'student;graduates');
+        const body = await fetchJson<{ SearchResult?: { SearchResultCountAll?: string | number; SearchResultItems?: UsaJobsResult[] } }>(`https://data.usajobs.gov/api/search?${params}`, {
+          provider: 'USAJOBS', company: 'US Government', headers: { Host: 'data.usajobs.gov', 'User-Agent': opts.userAgentEmail, 'Authorization-Key': opts.apiKey },
+        });
+        const result = body.SearchResult;
+        const rows = result?.SearchResultItems ?? [];
+        for (const row of rows) add(jobs, normalizeUsaJobs(row, hiringPath));
+        if (!rows.length || (result?.SearchResultCountAll != null ? page * 250 >= Number(result.SearchResultCountAll) : rows.length < 250)) break;
+      }
+    }
+  }
+  return dedupeJobs(jobs);
 }

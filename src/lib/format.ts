@@ -36,6 +36,13 @@ export const SKILL_OPTIONS = [
 const SOURCE_LABELS: Record<string, string> = {
   adzuna: 'Jobs by Adzuna',
   arbeitnow: 'via Arbeitnow',
+  greenhouse: 'From the company’s careers page (Greenhouse)',
+  lever: 'From the company’s careers page (Lever)',
+  ashby: 'From the company’s careers page (Ashby)',
+  smartrecruiters: 'From the company’s careers page (SmartRecruiters)',
+  recruitee: 'From the company’s careers page (Recruitee)',
+  personio: 'From the company’s careers page (Personio)',
+  usajobs: 'via USAJOBS.gov',
 };
 
 /** Attribution for imported listings (required by the job boards' terms); null for in-app jobs. */

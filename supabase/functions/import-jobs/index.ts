@@ -8,7 +8,14 @@
 //     -d '{"sources":["adzuna"],"what":["data analyst"],"where":"Charlotte, NC"}'
 //
 // Body (all optional):
-//   sources  ["adzuna", "arbeitnow"]  which feeds to pull (default: all configured)
+//   sources  which feeds to pull. Default: ["adzuna", "arbeitnow"] (whichever
+//            are configured). Also available: "greenhouse", "lever", "ashby",
+//            "smartrecruiters", "recruitee", "personio" (employer job boards;
+//            internships / entry-level / part-time roles in the US or remote)
+//            and "usajobs" (needs USAJOBS_API_KEY + USAJOBS_EMAIL secrets).
+//            Pull employer boards in their own scheduled runs: fetching all of
+//            them in one call can exceed the Edge Function time limit.
+//   companies  override board tokens per source, e.g. {"greenhouse": ["stripe"]}
 //   what     search terms for Adzuna  (default: ADZUNA_WHAT secret, or DEFAULT_WHAT)
 //   where    Adzuna location filter   (default: ADZUNA_WHERE secret, or nationwide)
 //   country  Adzuna country code      (default: ADZUNA_COUNTRY secret, or "us")
@@ -18,18 +25,41 @@
 // Secrets:
 //   IMPORT_SECRET                  required; callers send it as x-import-secret
 //   ADZUNA_APP_ID, ADZUNA_APP_KEY  free keys from developer.adzuna.com
+//   USAJOBS_API_KEY, USAJOBS_EMAIL free key from developer.usajobs.gov (the
+//                                  registered email is sent as User-Agent)
 //
 // Deploy with --no-verify-jwt: the shared secret is the authentication.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildJobText, generateEmbedding, toPgVector } from '../_shared/embeddings.ts';
+import { ATS_COMPANIES, ATS_SOURCES, type AtsSource } from '../_shared/ats-companies.ts';
 import {
   dedupeJobs,
   fetchAdzuna,
   fetchArbeitnow,
+  fetchAshby,
+  fetchGreenhouse,
+  fetchLever,
+  fetchPersonio,
+  fetchRecruitee,
+  fetchSmartRecruiters,
+  fetchUsaJobs,
   type ImportedJob,
+  isEarlyCareer,
+  jobFingerprint,
   type JobSource,
 } from '../_shared/job-sources.ts';
+
+const ATS_FETCHERS: Record<AtsSource, (company: string) => Promise<ImportedJob[]>> = {
+  greenhouse: (c) => fetchGreenhouse(c),
+  lever: (c) => fetchLever(c),
+  ashby: (c) => fetchAshby(c),
+  smartrecruiters: (c) => fetchSmartRecruiters(c),
+  recruitee: (c) => fetchRecruitee(c),
+  personio: (c) => fetchPersonio(c),
+};
+// Boards fetched at once per source: keeps runs short without hammering any API.
+const ATS_CONCURRENCY = 4;
 
 const IMPORTER_ID = 'de000000-0000-4000-8000-000000000002';
 const DEFAULT_WHAT = [
@@ -54,6 +84,7 @@ interface Body {
   country?: string;
   embed_only?: boolean;
   embed_limit?: number;
+  companies?: Partial<Record<AtsSource, string[]>>;
 }
 
 Deno.serve(async (req) => {
@@ -75,10 +106,18 @@ Deno.serve(async (req) => {
 
   const adzunaId = Deno.env.get('ADZUNA_APP_ID');
   const adzunaKey = Deno.env.get('ADZUNA_APP_KEY');
-  const configured: JobSource[] = adzunaId && adzunaKey ? ['adzuna', 'arbeitnow'] : ['arbeitnow'];
+  const usajobsKey = Deno.env.get('USAJOBS_API_KEY');
+  const usajobsEmail = Deno.env.get('USAJOBS_EMAIL');
+  const legacy: JobSource[] = adzunaId && adzunaKey ? ['adzuna', 'arbeitnow'] : ['arbeitnow'];
+  const configured: JobSource[] = [
+    ...legacy,
+    ...ATS_SOURCES,
+    ...(usajobsKey && usajobsEmail ? (['usajobs'] as JobSource[]) : []),
+  ];
+  // The default stays the original feeds, so the existing daily cron is unchanged.
   const sources = body.embed_only
     ? []
-    : (body.sources ?? configured).filter((s) => configured.includes(s));
+    : (body.sources ?? legacy).filter((s) => configured.includes(s));
 
   const admin = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -89,6 +128,9 @@ Deno.serve(async (req) => {
   const errors: string[] = [];
   if (body.sources?.includes('adzuna') && !sources.includes('adzuna')) {
     errors.push('adzuna skipped: set ADZUNA_APP_ID and ADZUNA_APP_KEY secrets');
+  }
+  if (body.sources?.includes('usajobs') && !sources.includes('usajobs')) {
+    errors.push('usajobs skipped: set USAJOBS_API_KEY and USAJOBS_EMAIL secrets');
   }
 
   // 1. Fetch. One failing feed or query shouldn't stop the others.
@@ -115,9 +157,60 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 2. Upsert. Embeddings are left alone on update; new rows get them below.
+  // Employer boards, a few at a time. A board that fails is reported and
+  // skipped; its existing listings are left alone (see step 3).
+  const okBoards = new Map<JobSource, string[]>();
+  for (const source of sources.filter((s): s is AtsSource => (ATS_SOURCES as string[]).includes(s))) {
+    const companies = body.companies?.[source] ?? ATS_COMPANIES[source];
+    const done: string[] = [];
+    // Lever pages are ~1 MB each and parallel downloads get cut off: one at a time.
+    await mapLimit(companies, source === 'lever' ? 1 : ATS_CONCURRENCY, async (company) => {
+      try {
+        fetched.push(...(await ATS_FETCHERS[source](company)));
+        done.push(company);
+      } catch (e) {
+        errors.push(`${source} ${company}: ${(e as Error).message}`);
+      }
+    });
+    okBoards.set(source, done);
+  }
+  if (sources.includes('usajobs')) {
+    try {
+      fetched.push(...(await fetchUsaJobs({ apiKey: usajobsKey!, userAgentEmail: usajobsEmail! })));
+    } catch (e) {
+      errors.push(`usajobs: ${(e as Error).message}`);
+    }
+  }
+
+  // 2. Dedupe across providers, then upsert. A listing already saved under
+  //    another source (same company, title and location) keeps its existing
+  //    row, so saved jobs and swipe history stay attached to it.
+  const existing = new Map<string, string>();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin
+      .from('jobs')
+      .select('source, external_id, company_name, title, location')
+      .neq('source', 'jobswipe')
+      .eq('is_active', true)
+      .range(from, from + 999);
+    if (error) {
+      errors.push(`dedupe query: ${error.message}`);
+      break;
+    }
+    for (const j of data) {
+      existing.set(jobFingerprint(j as ImportedJob), `${j.source}:${j.external_id}`);
+    }
+    if (data.length < 1000) break;
+  }
+  const fresh = dedupeJobs(fetched).filter((j) => {
+    const owner = existing.get(jobFingerprint(j));
+    return !owner || owner === `${j.source}:${j.external_id}`;
+  });
+  report.duplicates_skipped = fetched.length - fresh.length;
+
+  // Embeddings are left alone on update; new rows get them below.
   const now = new Date().toISOString();
-  const rows = dedupeJobs(fetched).map((j) => ({
+  const rows = fresh.map((j) => ({
     ...j,
     recruiter_id: IMPORTER_ID,
     is_active: true,
@@ -132,6 +225,13 @@ Deno.serve(async (req) => {
   }
   report.fetched = fetched.length;
   report.upserted = upserted;
+  report.early_career = rows.filter((r) => isEarlyCareer(r.title)).length;
+  report.by_source = Object.fromEntries(
+    sources.map((s) => [s, {
+      fetched: fetched.filter((j) => j.source === s).length,
+      saved: rows.filter((r) => r.source === s).length,
+    }]),
+  );
 
   // 3. Retire listings a feed stopped returning. Only for feeds that loaded,
   //    so an API outage doesn't wipe the feed.
@@ -139,21 +239,28 @@ Deno.serve(async (req) => {
   const healthy = sources.filter((s) => rows.some((r) => r.source === s));
   let deactivated = 0;
   for (const source of healthy) {
-    const { data, error } = await admin
-      .from('jobs')
-      .update({ is_active: false })
-      .eq('source', source)
-      .eq('is_active', true)
-      .lt('last_seen_at', staleBefore)
-      .select('id');
-    if (error) errors.push(`deactivate ${source}: ${error.message}`);
-    else deactivated += data.length;
+    // Employer boards: only retire jobs from boards that loaded this run.
+    for (const board of okBoards.get(source) ?? [null]) {
+      let query = admin
+        .from('jobs')
+        .update({ is_active: false })
+        .eq('source', source)
+        .eq('is_active', true)
+        .lt('last_seen_at', staleBefore);
+      if (board) query = query.like('external_id', `${board}:%`);
+      const { data, error } = await query.select('id');
+      if (error) errors.push(`deactivate ${source}${board ? ` ${board}` : ''}: ${error.message}`);
+      else deactivated += data.length;
+    }
   }
   report.deactivated = deactivated;
 
-  // 4. Embed imported jobs that don't have a vector yet.
+  // 4. Embed imported jobs that don't have a vector yet. Runs that pull the
+  //    newer sources skip this: fetching plus ~0.4s CPU per embedding exceeds
+  //    the per-request CPU limit, so the {"embed_only": true} cron does it.
   let embedded = 0;
-  {
+  const skipEmbed = sources.some((s) => !legacy.includes(s));
+  if (!skipEmbed) {
     const { data: pending, error } = await admin
       .from('jobs')
       .select('id, title, company_name, description, required_skills, location, is_remote, updated_at')
@@ -197,6 +304,14 @@ Deno.serve(async (req) => {
 
   return json({ ok: errors.length === 0, ...report, errors });
 });
+
+async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) await fn(items[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
 
 function toList(value: string[] | string | undefined | null): string[] | null {
   const list = (Array.isArray(value) ? value : (value ?? '').split(','))
