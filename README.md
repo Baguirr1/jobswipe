@@ -13,18 +13,19 @@ A "Tinder for jobs" mobile app. Candidates swipe on jobs ranked by AI similarity
    1. your **name** and the **job title** you are aiming for,
    2. your **skills** (some are pre-selected from your title; tap tags to change them, or type your own),
    3. your **salary range** (tap a common range, or choose **Custom** for sliders),
-   4. your **resume** (optional): upload a PDF, Word (`.docx`) or `.txt` file, or paste the text.
+   4. your **resume** (optional): upload a PDF, Word (`.docx`) or `.txt` file, or paste the text. A **From your resume** card then suggests a job title, skills and a bio taken from it; untick anything you don't want and tap **Add to profile** (nothing changes until you do).
 
-   When you tap **Start swiping**, the app turns your profile into an AI embedding. This is what the match scores are based on.
+   When you tap **Start swiping**, the app turns your profile into an AI embedding. This is what the match scores are based on. Contact details (name, email, phone, address, links) are removed first, since they say nothing about fit.
 3. **Swipe on jobs** in the **Discover** tab. Jobs are sorted so your best match comes first.
    - **Swipe right**, or tap the green ♥, to **apply**.
    - **Swipe left**, or tap the red ✕, to **pass**.
    - **Tap a card** to flip it over and read the full description.
-   - The purple **"92% Match"** badge shows how close the job is to your profile.
+   - The **"92% match"** badge shows how close the job is to your profile. The back of the card explains it: skills you have, skills to add, and whether the pay reaches your target.
+   - Use the **filter** button for remote-only, a minimum salary or a location.
    - If you run out of jobs, tap **Refresh** to check for new listings.
 4. **Matches.** When a recruiter also says yes to you, you get an *It's a Match!* popup. The job then shows up in the **Matches** tab.
 
-   **Real job listings** (marked *Jobs by Adzuna* or *via Arbeitnow* on the card) come from public job boards. No recruiter on those is using JobSwipe, so swiping right **saves** the job. You'll find it under **Matches → Saved jobs**, where the **Apply** button opens the listing on the original site.
+   **Real job listings** come from public job boards and employers' own careers pages (the card says where, e.g. *Jobs by Adzuna* or *From the company's careers page*). Many are internships and entry-level roles. No recruiter on those is using JobSwipe, so swiping right **saves** the job. You'll find it in the **Saved** tab, where **Apply** opens the listing on the original site and **Mark applied** keeps track of where you've applied.
 5. **Chat.** Open a match to message the recruiter in real time.
 6. **Profile.** On the **Profile** tab, tap **Edit profile** to change your skills or resume (your matches are re-scored when you save), or tap **Sign out**.
 
@@ -53,7 +54,9 @@ Recruiter yes ──► rpc swipe_candidate┘ ───────────
 - **Optimistic swiping.** A card leaves the deck the moment the gesture finishes. The write happens in the background, and if it fails the card returns to the top with an error banner (`src/hooks/useSwipeQueue.ts`).
 - **Matches are created atomically** inside the swipe RPCs, so the client learns about a match in the same round trip and shows the popup.
 - **Match % calibration.** gte-small similarities are compressed: unrelated resume/job pairs score about 0.82 and a near-perfect fit about 0.95. `public.match_pct()` maps the 0.80–0.96 band linearly onto 0–100%. Tune those two constants once you have real data.
-- **Embedding budget.** Edge Functions get about 2s of CPU per request on the free plan, so each call embeds about 5 jobs. A cron job calls `import-jobs` with `{"embed_only": true}` every minute to work through new listings.
+- **Embedding budget.** Edge Functions get about 2s of CPU per request on the free plan, and 4 or more gte-small calls in one request fail with `WORKER_RESOURCE_LIMIT`. So each call embeds at most 3 jobs, and a cron job calls `import-jobs` with `{"embed_only": true}` every minute to work through new listings (about 180 an hour).
+- **Profile embeddings.** A profile is embedded as its header (title, skills, bio) plus up to two ~1,500-character slices of the resume, averaged into one vector (header weighted 50%), so more of the resume counts than a single truncated string would allow.
+- **Resume suggestions** are rule-based and run on the device (`src/lib/resumeExtract.ts`): a headline or first job title, ~40 skill patterns, and the Summary / Profile / Objective section.
 
 ## Setup
 
@@ -72,7 +75,7 @@ Recruiter yes ──► rpc swipe_candidate┘ ───────────
    npx supabase functions deploy parse-resume   # PDF / Word resume uploads
    ```
 4. Turn off **Authentication → Sign In / Providers → Email → Confirm email**. Supabase's built-in email sender only delivers to members of your Supabase organization, so other people can't confirm their sign-ups while this is on.
-5. Apply `supabase/migrations/20261028000000_job_imports.sql` and then `20261028000001_gte_small_embeddings.sql` the same way as step 2. They add imported-job support and the gte-small score scale.
+5. If you pasted the first migration by hand, apply the rest of `supabase/migrations/` the same way, in filename order (imported jobs, the gte-small score scale, profile privacy, filters / saved jobs / undo / insights). `npx supabase db push` applies them all.
 6. (Optional) Add 15 demo jobs: paste `supabase/seed.sql` into **SQL Editor → Run**. You should see `demo_jobs = 15`. Their embeddings are generated automatically the first time a job seeker opens the Discover tab.
 
 ### Real job listings (optional)
@@ -86,7 +89,7 @@ The `import-jobs` Edge Function pulls current listings from public job APIs, sco
 | Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Personio | None | Internships, co-ops, new-grad, entry-level and part-time roles (US or remote) straight from employers' public job boards. The boards pulled are listed in `supabase/functions/_shared/ats-companies.ts` |
 | [USAJOBS](https://developer.usajobs.gov/) | Free key + your registered email | Federal internships and student / recent-graduate roles |
 
-The employer boards are not part of the default run (which stays Adzuna + Arbeitnow). Pull them in their own scheduled runs by sending `{"sources": ["greenhouse"]}` (etc.) as the body; see step 4. For USAJOBS, run `npx supabase secrets set USAJOBS_API_KEY=xxxx USAJOBS_EMAIL=you@example.com` in your own terminal, then add a run with `{"sources": ["usajobs"]}`. A listing that already exists under another source (same company, title and location) is skipped, so nothing is duplicated.
+The employer boards are not part of the default run (which stays Adzuna + Arbeitnow). They're pulled in their own scheduled runs (step 4), with the bigger providers split into batches (`{"sources": ["greenhouse"], "batch": "2/3"}`) so each run stays under the Edge Function limits. For USAJOBS, run `npx supabase secrets set USAJOBS_API_KEY=xxxx USAJOBS_EMAIL=you@example.com` in your own terminal, then add a run with `{"sources": ["usajobs"]}`. A listing that already exists under another source (same company, title and location) is skipped, so nothing is duplicated.
 
 1. Sign up at developer.adzuna.com and set your keys. Run this in your own terminal so the key stays private:
    ```bash
@@ -116,15 +119,8 @@ The employer boards are not part of the default run (which stays Adzuna + Arbeit
          'x-import-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'import_jobs_secret')),
        body := '{}'::jsonb, timeout_milliseconds := 150000);
    $cron$);
-   -- and score new jobs a few at a time:
-   select cron.schedule('embed-jobs-every-minute', '* * * * *', $cron$
-     select net.http_post(
-       url := 'https://<project-ref>.supabase.co/functions/v1/import-jobs',
-       headers := jsonb_build_object('Content-Type', 'application/json',
-         'x-import-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'import_jobs_secret')),
-       body := '{"embed_only": true}'::jsonb, timeout_milliseconds := 30000);
-   $cron$);
    ```
+   Then schedule the employer-board imports and the every-minute embedding job: open `supabase/schedule-imports.sql`, replace the project URL with yours, and run it in **SQL Editor**. It creates 10 daily runs (10:10–10:55 UTC) plus `embed-jobs-every-minute`, and is safe to re-run. Check with `select jobname, schedule, active from cron.job;`.
 
 Remotive's public API is deliberately not used: its terms forbid showing listings behind a sign-up.
 
@@ -163,7 +159,9 @@ Then do one of the following:
 | Discover tab is empty | No active jobs exist yet. Run `supabase/seed.sql`, run an import, or post a job as a recruiter. |
 | Import returns `"adzuna skipped"` | Set the `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` secrets. |
 | Errors like *column jobs.source does not exist* | Apply the `20261028000000_job_imports.sql` migration. |
-| No "% Match" badges | Embeddings are still being generated (about 300 jobs/hour), or the cron jobs aren't scheduled. Check `select * from cron.job` and the `embed` / `import-jobs` function logs. |
+| No "% match" badges | Embeddings are still being generated (about 180 jobs/hour), or the cron jobs aren't scheduled. Check `select * from cron.job` and the `embed` / `import-jobs` function logs. |
+| `WORKER_RESOURCE_LIMIT` (HTTP 546) from a function | The request used more than the free plan's CPU budget. Split imports into smaller batches (`"batch": "1/3"`) and keep `embed_limit` at 3 or less. |
+| Resume upload says it couldn't read the file | Scanned (image-only) PDFs have no text; paste the resume instead. Make sure `parse-resume` is deployed. |
 | "You need to be signed in to Expo Go" | Run `npx expo login`, and sign in to the Expo Go app with the same account. |
 | Odd styling errors after config changes | Restart with `npx expo start --clear`. |
 
@@ -172,10 +170,13 @@ Then do one of the following:
 ```
 supabase/
   migrations/…_jobswipe_init.sql   schema, RLS, HNSW indexes, swipe + recommendation RPCs, realtime
-  functions/_shared/embeddings.ts  gte-small embedding utility + text builders
-  functions/_shared/job-sources.ts Adzuna + Arbeitnow fetchers, HTML cleanup, skill extraction
-  functions/import-jobs/index.ts   Edge Function: daily import of real listings
+  functions/_shared/embeddings.ts  gte-small embedding utility, text builders, contact stripping, resume chunking
+  functions/_shared/job-sources.ts fetchers for every job source, early-career / US filters, dedupe
+  functions/_shared/ats-companies.ts  verified employer boards per provider
+  functions/import-jobs/index.ts   Edge Function: imports real listings, retires stale ones, embeds
   functions/embed/index.ts         Edge Function: embeds the caller's profile or job (RLS-scoped)
+  functions/parse-resume/index.ts  Edge Function: text from PDF / Word resumes
+  schedule-imports.sql             pg_cron jobs for the daily imports + embedding
 src/
   app/                    Expo Router screens
     (tabs)/index.tsx      candidate swipe feed (vector recommendations)
@@ -184,10 +185,13 @@ src/
     chat/[matchId].tsx    1:1 realtime chat
     review/[jobId].tsx    recruiter swipes on applicants
     job/edit.tsx          create/edit a listing
-    onboarding.tsx        skills, salary range, resume → embedding
+    (tabs)/saved.tsx      saved job-board listings, apply + "mark applied"
+    onboarding.tsx        4-step setup: title, skills, salary, resume → embedding
   components/SwipeDeck.tsx  generic 60fps card stack (UI-thread gestures, flip on tap)
+  components/ProfileForm.tsx  profile editor, resume upload + "From your resume" suggestions
   hooks/useSwipeQueue.ts    optimistic queue + prefetch + rollback
-  lib/                      Supabase client, typed API calls, embedding client
+  hooks/useProfileDraft.ts  profile form state shared by onboarding and Edit profile
+  lib/                      Supabase client, typed API calls, embedding client, resume upload + extraction
 ```
 
 ## Notes and limits
