@@ -22,6 +22,8 @@ export class EmbeddingError extends Error {
 }
 
 export interface ProfileEmbeddingInput {
+  /** Only used to strip the name out of the resume; never embedded. */
+  full_name?: string | null;
   target_title?: string | null;
   bio?: string | null;
   skills?: string[] | null;
@@ -37,15 +39,142 @@ export interface JobEmbeddingInput {
   is_remote?: boolean | null;
 }
 
+// A profile is embedded as several pieces: a header (title, skills, bio) plus
+// up to MAX_RESUME_CHUNKS slices of the resume. Embedding the whole thing as one
+// 1500-char string used to leave ~900 chars for the resume, most of it the
+// name/email/phone block at the top. Each gte-small call costs ~0.3-0.4s of the
+// ~2s CPU budget, so header + 4 chunks keeps a profile to one request.
+export const MAX_RESUME_CHUNKS = 4;
+/** Share of the final vector given to the header; the rest is split across resume chunks. */
+const HEADER_WEIGHT = 0.5;
+
 // Candidate and job text share the same shape (title, skills, then prose) so
 // they land in comparable regions of the embedding space.
-export function buildProfileText(p: ProfileEmbeddingInput): string {
-  return compact([
+export function buildProfileTexts(p: ProfileEmbeddingInput): { header: string; chunks: string[] } {
+  const header = compact([
     p.target_title && `Role: ${p.target_title}`,
     p.skills?.length && `Skills: ${p.skills.join(', ')}`,
-    p.bio && `Summary: ${p.bio}`,
-    p.resume_text && `Experience: ${p.resume_text}`,
+    p.bio && `Summary: ${stripContactInfo(p.bio, p.full_name)}`,
   ]);
+  const resume = p.resume_text ? stripContactInfo(p.resume_text, p.full_name) : '';
+  const chunks = chunkText(resume, MAX_INPUT_CHARS - 'Experience: '.length, MAX_RESUME_CHUNKS).map(
+    (c) => `Experience: ${c}`,
+  );
+  return { header, chunks };
+}
+
+/**
+ * Embed a profile: header and resume chunks are embedded separately, then
+ * combined as a weighted mean (header HEADER_WEIGHT, chunks share the rest)
+ * and re-normalized, so the result is still one unit vector and the ranking
+ * SQL, HNSW index and match_pct() work unchanged.
+ */
+export async function generateProfileEmbedding(p: ProfileEmbeddingInput): Promise<number[]> {
+  const { header, chunks } = buildProfileTexts(p);
+  const parts: { text: string; weight: number }[] = [];
+  if (header && chunks.length) {
+    parts.push({ text: header, weight: HEADER_WEIGHT });
+    for (const text of chunks) parts.push({ text, weight: (1 - HEADER_WEIGHT) / chunks.length });
+  } else if (header) {
+    parts.push({ text: header, weight: 1 });
+  } else {
+    for (const text of chunks) parts.push({ text, weight: 1 / chunks.length });
+  }
+  if (!parts.length) throw new EmbeddingError('Cannot embed an empty profile', 400);
+
+  const sum = new Array<number>(EMBEDDING_DIMENSIONS).fill(0);
+  for (const { text, weight } of parts) {
+    const v = await generateEmbedding(text);
+    for (let i = 0; i < sum.length; i++) sum[i] += weight * v[i];
+  }
+  return normalize(sum);
+}
+
+export function normalize(v: number[]): number[] {
+  const norm = Math.hypot(...v);
+  return norm > 0 ? v.map((x) => x / norm) : v;
+}
+
+const EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/g;
+const URL = /\b(https?:\/\/|www\.)\S+|\b(linkedin\.com|github\.com|gitlab\.com)\/\S*/gi;
+// +1 (555) 123-4567, 555.123.4567, +44 20 7946 0958 ... (10+ digits, so year ranges like 2019-2021 survive)
+const PHONE = /(\+?\d{1,3}[\s.-]?)?(\(\d{2,4}\)[\s.-]?)?\d{2,4}[\s.-]\d{3,4}([\s.-]\d{2,4})?/g;
+// "123 Main St", "42 Oak Avenue Apt 5"
+const STREET =
+  /\b\d{1,6}\s+(?:[A-Z][\w.]*\s+){1,4}(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Ln|Lane|Ct|Court|Way|Pl|Place|Pkwy|Hwy)\b\.?(?:,?\s*(?:Apt|Suite|Unit|#)\s*\w+)?/g;
+// "Charlotte, NC 28223"
+const CITY_STATE_ZIP = /\b[A-Z][a-zA-Z.\s]{1,30},\s*[A-Z]{2}\s+\d{5}(-\d{4})?\b/g;
+
+/**
+ * Remove contact details (and the person's name) from resume/bio text. They
+ * carry no signal about fit, waste the embedding's input budget, and names and
+ * addresses can act as demographic proxies in the score recruiters see.
+ */
+export function stripContactInfo(text: string, fullName?: string | null): string {
+  let out = text
+    .replace(EMAIL, ' ')
+    .replace(URL, ' ')
+    .replace(STREET, ' ')
+    .replace(CITY_STATE_ZIP, ' ')
+    .replace(PHONE, (m) => (m.replace(/\D/g, '').length >= 10 ? ' ' : m));
+
+  const name = fullName?.trim();
+  if (name) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+    out = out.replace(new RegExp(escaped, 'gi'), ' ');
+  }
+
+  // Drop lines left with nothing but separators ("|", "•", "-", ...).
+  return out
+    .split('\n')
+    .map((l) => l.replace(/[ \t]+/g, ' ').trim())
+    .filter((l) => /[\p{L}\p{N}]{2,}/u.test(l))
+    .join('\n')
+    .trim();
+}
+
+/**
+ * Split text into at most `maxChunks` pieces of at most `maxChars`, breaking at
+ * line, then sentence, then word boundaries. Keeps the start of the text
+ * (resumes put recent experience first) and drops what doesn't fit.
+ */
+export function chunkText(text: string, maxChars: number, maxChunks: number): string[] {
+  const units = text
+    .split(/\n+/)
+    .flatMap((line) => (line.length <= maxChars ? [line] : line.split(/(?<=[.!?;])\s+/)))
+    .flatMap((piece) => (piece.length <= maxChars ? [piece] : splitWords(piece, maxChars)))
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const chunks: string[] = [];
+  let current = '';
+  for (const unit of units) {
+    const next = current ? `${current} ${unit}` : unit;
+    if (next.length <= maxChars) {
+      current = next;
+      continue;
+    }
+    chunks.push(current);
+    if (chunks.length === maxChunks) return chunks;
+    current = unit;
+  }
+  if (current && chunks.length < maxChunks) chunks.push(current);
+  return chunks;
+}
+
+function splitWords(text: string, maxChars: number): string[] {
+  const out: string[] = [];
+  let current = '';
+  for (const word of text.split(/\s+/)) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= maxChars) current = next;
+    else {
+      if (current) out.push(current);
+      current = word.slice(0, maxChars);
+    }
+  }
+  if (current) out.push(current);
+  return out;
 }
 
 export function buildJobText(j: JobEmbeddingInput): string {

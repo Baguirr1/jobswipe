@@ -13,9 +13,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   buildJobText,
-  buildProfileText,
   EmbeddingError,
   generateEmbedding,
+  generateProfileEmbedding,
   toPgVector,
 } from '../_shared/embeddings.ts';
 
@@ -55,12 +55,12 @@ Deno.serve(async (req) => {
     if (body.target === 'profile') {
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('target_title, bio, skills, resume_text')
+        .select('full_name, target_title, bio, skills, resume_text')
         .eq('id', user.id)
         .single();
       if (error) return json({ error: error.message }, 404);
 
-      const embedding = await generateEmbedding(buildProfileText(profile));
+      const embedding = await generateProfileEmbedding(profile);
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ embedding: toPgVector(embedding) })
