@@ -42,9 +42,9 @@ export interface JobEmbeddingInput {
 // A profile is embedded as several pieces: a header (title, skills, bio) plus
 // up to MAX_RESUME_CHUNKS slices of the resume. Embedding the whole thing as one
 // 1500-char string used to leave ~900 chars for the resume, most of it the
-// name/email/phone block at the top. Each gte-small call costs ~0.3-0.4s of the
-// ~2s CPU budget, so header + 4 chunks keeps a profile to one request.
-export const MAX_RESUME_CHUNKS = 4;
+// name/email/phone block at the top. 4+ gte-small calls in one request hit
+// WORKER_RESOURCE_LIMIT (measured 2026-11-12), so header + 2 chunks (3 calls).
+export const MAX_RESUME_CHUNKS = 2;
 /** Share of the final vector given to the header; the rest is split across resume chunks. */
 const HEADER_WEIGHT = 0.5;
 

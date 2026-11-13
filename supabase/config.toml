@@ -418,3 +418,7 @@ enabled = true
 # Called by Supabase Cron with a shared secret (x-import-secret), not a user JWT.
 [functions.import-jobs]
 verify_jwt = false
+
+# Called by signed-in app users; the gateway rejects requests without a valid JWT.
+[functions.embed]
+verify_jwt = true

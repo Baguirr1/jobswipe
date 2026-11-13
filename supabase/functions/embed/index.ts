@@ -26,7 +26,8 @@ const corsHeaders = {
 
 type Body = { target: 'profile' } | { target: 'job'; id: string } | { target: 'backfill' };
 
-const BACKFILL_BATCH = 5;
+// 4+ embeddings in one call hit WORKER_RESOURCE_LIMIT (measured 2026-11-12).
+const BACKFILL_BATCH = 3;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });

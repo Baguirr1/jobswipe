@@ -16,6 +16,8 @@
 //            Pull employer boards in their own scheduled runs: fetching all of
 //            them in one call can exceed the Edge Function time limit.
 //   companies  override board tokens per source, e.g. {"greenhouse": ["stripe"]}
+//   batch      "i/n": only the i-th of n slices of the board list, so big
+//              sources can be split across scheduled runs (e.g. "2/3")
 //   what     search terms for Adzuna  (default: ADZUNA_WHAT secret, or DEFAULT_WHAT)
 //   where    Adzuna location filter   (default: ADZUNA_WHERE secret, or nationwide)
 //   country  Adzuna country code      (default: ADZUNA_COUNTRY secret, or "us")
@@ -74,8 +76,10 @@ const STALE_AFTER_DAYS = 7;
 // Edge Functions get about 2s of CPU per request on the free plan, and gte-small
 // takes ~0.4s per job, so each call embeds a handful. A per-minute cron job
 // ({"embed_only": true}) works through the rest; see "unembedded" in the response.
-const MAX_EMBED_PER_RUN = 8;
-const DEFAULT_EMBED_PER_RUN = 5;
+// Measured 2026-11-12: 3 embeddings per call succeed, 4 or more fail with
+// WORKER_RESOURCE_LIMIT.
+const MAX_EMBED_PER_RUN = 3;
+const DEFAULT_EMBED_PER_RUN = 3;
 
 interface Body {
   sources?: JobSource[];
@@ -85,6 +89,17 @@ interface Body {
   embed_only?: boolean;
   embed_limit?: number;
   companies?: Partial<Record<AtsSource, string[]>>;
+  /** "i/n": pull only the i-th of n equal slices of each source's board list. */
+  batch?: string;
+}
+
+function batchOf<T>(items: T[], batch: string | undefined): T[] {
+  const m = /^(\d+)\/(\d+)$/.exec(batch ?? '');
+  if (!m) return items;
+  const [i, n] = [Number(m[1]), Number(m[2])];
+  if (n < 1 || i < 1 || i > n) return items;
+  const size = Math.ceil(items.length / n);
+  return items.slice((i - 1) * size, i * size);
 }
 
 Deno.serve(async (req) => {
@@ -161,7 +176,7 @@ Deno.serve(async (req) => {
   // skipped; its existing listings are left alone (see step 3).
   const okBoards = new Map<JobSource, string[]>();
   for (const source of sources.filter((s): s is AtsSource => (ATS_SOURCES as string[]).includes(s))) {
-    const companies = body.companies?.[source] ?? ATS_COMPANIES[source];
+    const companies = body.companies?.[source] ?? batchOf(ATS_COMPANIES[source], body.batch);
     const done: string[] = [];
     // Lever pages are ~1 MB each and parallel downloads get cut off: one at a time.
     await mapLimit(companies, source === 'lever' ? 1 : ATS_CONCURRENCY, async (company) => {
@@ -236,7 +251,11 @@ Deno.serve(async (req) => {
   // 3. Retire listings a feed stopped returning. Only for feeds that loaded,
   //    so an API outage doesn't wipe the feed.
   const staleBefore = new Date(Date.now() - STALE_AFTER_DAYS * 86_400_000).toISOString();
-  const healthy = sources.filter((s) => rows.some((r) => r.source === s));
+  // Employer boards count as healthy when at least one board loaded, even if it
+  // had no qualifying jobs; otherwise that batch's old jobs would never retire.
+  const healthy = sources.filter((s) =>
+    okBoards.has(s) ? okBoards.get(s)!.length > 0 : rows.some((r) => r.source === s),
+  );
   let deactivated = 0;
   for (const source of healthy) {
     // Employer boards: only retire jobs from boards that loaded this run.
