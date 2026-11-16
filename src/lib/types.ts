@@ -38,10 +38,18 @@ export interface Job {
 }
 
 /** An imported job the candidate swiped right on (applied to off-platform). */
+/** Where a saved job is in the candidate's search. Private to the candidate. */
+export type ApplicationStage = 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected';
+
 export interface SavedJob {
   created_at: string;
   /** When the candidate marked it as applied; null if not yet. */
   applied_at: string | null;
+  stage: ApplicationStage;
+  /** Private note, e.g. "talked to Sarah, follow up Friday". */
+  note: string;
+  /** Last stage or note change; null if never tracked. */
+  tracked_at: string | null;
   job: Pick<
     Job,
     | 'id'
@@ -68,6 +76,11 @@ export interface JobFilters {
   keyword: string;
   postedWithinDays: 1 | 7 | 30 | null;
   level: 'internship' | 'entry' | 'senior' | null;
+  quickApplyOnly: boolean;
+  salaryListed: boolean;
+  skillsMatch: boolean;
+  minMatch: 50 | 70 | 85 | null;
+  sort: 'match' | 'newest' | 'salary';
 }
 
 /** Aggregates returned by get_job_insights(). */

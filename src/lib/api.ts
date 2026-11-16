@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type {
+  ApplicationStage,
   CandidateForJob,
   Job,
   JobFilters,
@@ -61,6 +62,11 @@ export async function getRecommendedJobs(
       p_keyword: filters?.keyword?.trim() || null,
       p_posted_within_days: filters?.postedWithinDays ?? null,
       p_level: filters?.level ?? null,
+      p_quick_apply_only: filters?.quickApplyOnly ?? false,
+      p_salary_listed: filters?.salaryListed ?? false,
+      p_skills_match: filters?.skillsMatch ?? false,
+      p_min_match: filters?.minMatch ?? null,
+      p_sort: filters?.sort ?? 'match',
     }),
   );
 }
@@ -79,8 +85,8 @@ export async function swipeJob(jobId: string, direction: SwipeDirection): Promis
 
 /** Imported jobs the candidate swiped right on; they apply on the source site. */
 export async function getSavedJobs(candidateId: string): Promise<SavedJob[]> {
-  return unwrap(
-    await supabase
+  const [rows, tracking] = await Promise.all([
+    supabase
       .from('swipes')
       .select(
         'created_at, applied_at, job:jobs!inner ( id, title, company_name, company_logo, location, is_remote, source, apply_url, description, required_skills, salary_min, salary_max )',
@@ -89,12 +95,34 @@ export async function getSavedJobs(candidateId: string): Promise<SavedJob[]> {
       .eq('direction', 'right')
       .neq('job.source', 'jobswipe')
       .order('created_at', { ascending: false })
-      .returns<SavedJob[]>(),
-  );
+      .returns<Omit<SavedJob, 'stage' | 'note' | 'tracked_at'>[]>(),
+    supabase
+      .from('saved_job_tracking')
+      .select('job_id, stage, note, updated_at')
+      .eq('candidate_id', candidateId)
+      .returns<{ job_id: string; stage: ApplicationStage; note: string; updated_at: string }[]>(),
+  ]);
+  const byJob = new Map(unwrap(tracking).map((t) => [t.job_id, t]));
+  return unwrap(rows).map((row) => {
+    const t = byJob.get(row.job.id);
+    return {
+      ...row,
+      // Saves marked applied before stages existed have no tracking row.
+      stage: t?.stage ?? (row.applied_at ? 'applied' : 'saved'),
+      note: t?.note ?? '',
+      tracked_at: t?.updated_at ?? null,
+    };
+  });
 }
 
-export async function setSavedJobApplied(jobId: string, applied: boolean): Promise<void> {
-  unwrap(await supabase.rpc('set_saved_job_applied', { p_job_id: jobId, p_applied: applied }));
+/** Move a saved job to a stage; keeps swipes.applied_at in sync. */
+export async function setSavedJobStage(jobId: string, stage: ApplicationStage): Promise<void> {
+  unwrap(await supabase.rpc('set_saved_job_stage', { p_job_id: jobId, p_stage: stage }));
+}
+
+/** Private note on a saved job (max 1000 chars; empty clears it). */
+export async function setSavedJobNote(jobId: string, note: string): Promise<void> {
+  unwrap(await supabase.rpc('set_saved_job_note', { p_job_id: jobId, p_note: note }));
 }
 
 /** Drop a saved job; it's recorded as a pass so it doesn't return to the feed. */

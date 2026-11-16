@@ -1,7 +1,14 @@
 -- security definer RPCs bypass RLS, so each must check the caller itself.
 begin;
-select plan(13);
+select plan(21);
 select tests.seed_fixtures();
+-- Round-two fixtures: only Job A is unseen by c2; Job C is unseen by c1.
+update public.jobs set salary_min = 80000, required_skills = array['TypeScript']
+where id = 'b0000000-0000-4000-8000-00000000000a';
+update public.profiles set skills = array['typescript']
+where id = 'c2000000-0000-4000-8000-000000000002';
+update public.jobs set source = 'external', apply_url = 'https://example.com/apply'
+where id = 'b0000000-0000-4000-8000-00000000000c';
 
 -- Recruiter r2 poking at r1's job
 select tests.authenticate_as('a2000000-0000-4000-8000-000000000002');
@@ -27,6 +34,21 @@ select is((select count(*) from public.get_recommended_jobs_for_candidate(
 select is((select count(*) from public.get_recommended_jobs_for_candidate(
   'c2000000-0000-4000-8000-000000000002', p_level => 'senior')),
   0::bigint, 'senior filter excludes titles without a senior marker');
+select is((select count(*) from public.get_recommended_jobs_for_candidate(
+  'c2000000-0000-4000-8000-000000000002', p_quick_apply_only => true)),
+  1::bigint, 'quick apply includes in-app jobs');
+select is((select count(*) from public.get_recommended_jobs_for_candidate(
+  'c2000000-0000-4000-8000-000000000002', p_salary_listed => true)),
+  1::bigint, 'salary listed includes a salary_min without salary_max');
+select is((select count(*) from public.get_recommended_jobs_for_candidate(
+  'c2000000-0000-4000-8000-000000000002', p_skills_match => true)),
+  1::bigint, 'skills overlap is case-insensitive');
+select is((select count(*) from public.get_recommended_jobs_for_candidate(
+  'c2000000-0000-4000-8000-000000000002', p_min_match => 50)),
+  0::bigint, 'minimum match excludes jobs without a score');
+select is((select count(*) from public.get_recommended_jobs_for_candidate(
+  'c2000000-0000-4000-8000-000000000002', p_sort => 'unknown')),
+  1::bigint, 'unknown sort falls back to match');
 select throws_ok($$ select public.swipe_job('b0000000-0000-4000-8000-00000000000b', 'right') $$,
   'P0002', null, 'swipe_job rejects inactive jobs');
 select throws_ok($$ select public.set_saved_job_applied('b0000000-0000-4000-8000-00000000000a', true) $$,
@@ -36,6 +58,17 @@ select throws_ok($$ select public.set_saved_job_applied('b0000000-0000-4000-8000
 select tests.authenticate_as('c1000000-0000-4000-8000-000000000001');
 select throws_ok($$ select public.undo_swipe('b0000000-0000-4000-8000-00000000000a') $$,
   'P0001', null, 'undo_swipe refuses once the swipe produced a match');
+
+select tests.authenticate_as('c1000000-0000-4000-8000-000000000001');
+select is((select count(*) from public.get_recommended_jobs_for_candidate(
+  'c1000000-0000-4000-8000-000000000001', p_quick_apply_only => true)),
+  0::bigint, 'quick apply excludes external jobs');
+select is((select count(*) from public.get_recommended_jobs_for_candidate(
+  'c1000000-0000-4000-8000-000000000001', p_salary_listed => true)),
+  0::bigint, 'salary listed excludes jobs without either salary');
+select is((select count(*) from public.get_recommended_jobs_for_candidate(
+  'c1000000-0000-4000-8000-000000000001', p_skills_match => true)),
+  0::bigint, 'skills match excludes jobs when candidate has no skills');
 
 -- Signed out: no RPC access at all.
 select tests.as_anon();

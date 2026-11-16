@@ -22,6 +22,15 @@ function restoreFilters(value: unknown): JobFilters {
   if (stored.level === 'internship' || stored.level === 'entry' || stored.level === 'senior') {
     filters.level = stored.level;
   }
+  if (typeof stored.quickApplyOnly === 'boolean') filters.quickApplyOnly = stored.quickApplyOnly;
+  if (typeof stored.salaryListed === 'boolean') filters.salaryListed = stored.salaryListed;
+  if (typeof stored.skillsMatch === 'boolean') filters.skillsMatch = stored.skillsMatch;
+  if (stored.minMatch === 50 || stored.minMatch === 70 || stored.minMatch === 85) {
+    filters.minMatch = stored.minMatch;
+  }
+  if (stored.sort === 'match' || stored.sort === 'newest' || stored.sort === 'salary') {
+    filters.sort = stored.sort;
+  }
   return filters;
 }
 
