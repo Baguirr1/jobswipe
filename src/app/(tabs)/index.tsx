@@ -135,7 +135,7 @@ export default function DiscoverScreen() {
         </View>
       </View>
 
-      {filterCount ? (
+      {filterCount || filters.sort !== 'match' ? (
         <View className="mb-2 flex-row flex-wrap items-center px-5">
           {filterChips(filters).map((chip) => (
             <Pressable
