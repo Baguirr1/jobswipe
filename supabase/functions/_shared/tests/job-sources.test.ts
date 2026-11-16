@@ -23,6 +23,8 @@ import {
   normalizeRecruitee,
   normalizeSalary,
   normalizeSmartRecruiters,
+  toEmploymentType,
+  toWorkplaceType,
 } from "../job-sources.ts";
 
 // Every test starts with network access disabled, even if run with permissions.
@@ -546,3 +548,54 @@ offlineTest(
     assertEquals(job.description, "Work\nBuild Python & SQL 'tools' A tools.");
   },
 );
+
+offlineTest("toEmploymentType maps each board's labels", () => {
+  const cases: [string, string | null][] = [
+    ["Full-time", "full_time"], ["FullTime", "full_time"], ["fulltime", "full_time"], ["permanent", "full_time"],
+    ["Part-time", "part_time"], ["PartTime", "part_time"],
+    ["Intern", "internship"], ["Internship", "internship"], ["trainee", "internship"],
+    ["Contract", "contract"], ["freelance", "contract"],
+    ["Temporary", "temporary"], ["Seasonal", "temporary"],
+    ["", null], ["Internal", null],
+  ];
+  for (const [label, expected] of cases) assertEquals(toEmploymentType(label), expected, label);
+  // The first label that maps wins (Personio: employmentType, then schedule).
+  assertEquals(toEmploymentType("", "part-time"), "part_time");
+  assertEquals(toEmploymentType(undefined, null), null);
+});
+
+offlineTest("toWorkplaceType maps each board's labels", () => {
+  const cases: [string | undefined, string | null][] = [
+    ["OnSite", "onsite"], ["onsite", "onsite"], ["On-site", "onsite"],
+    ["Hybrid", "hybrid"], ["remote", "remote"], ["unspecified", null], [undefined, null],
+  ];
+  for (const [label, expected] of cases) assertEquals(toWorkplaceType(label), expected, String(label));
+});
+
+offlineTest("ATS normalizers pass through the board's job type and workplace", () => {
+  const lever = normalizeLever({
+    ...fixtures.lever,
+    categories: { ...fixtures.lever.categories, commitment: "Intern" },
+    workplaceType: "hybrid",
+  }, "acme");
+  assertEquals([lever?.employment_type, lever?.workplace_type], ["internship", "hybrid"]);
+
+  const ashby = normalizeAshby({ ...fixtures.ashby, employmentType: "PartTime", workplaceType: "OnSite" }, "acme");
+  assertEquals([ashby?.employment_type, ashby?.workplace_type], ["part_time", "onsite"]);
+
+  const smart = normalizeSmartRecruiters({
+    ...fixtures.smartrecruiters,
+    typeOfEmployment: { label: "Full-time" },
+    location: { ...fixtures.smartrecruiters.location, hybrid: true },
+  }, "acme");
+  assertEquals([smart?.employment_type, smart?.workplace_type], ["full_time", "hybrid"]);
+
+  const recruitee = normalizeRecruitee({ ...fixtures.recruitee, employment_type_code: "contract" }, "acme");
+  assertEquals([recruitee?.employment_type, recruitee?.workplace_type], ["contract", "remote"]);
+
+  // Greenhouse has no such fields: leave both for the database to derive.
+  const greenhouse = normalizeGreenhouse(fixtures.greenhouse, "acme");
+  assertEquals([greenhouse?.employment_type, greenhouse?.workplace_type], [null, null]);
+  // Arbeitnow only imports remote listings.
+  assertEquals(normalizeArbeitnow(fixtures.arbeitnow)?.workplace_type, "remote");
+});

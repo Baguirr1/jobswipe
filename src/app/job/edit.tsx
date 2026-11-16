@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   Switch,
   Text,
@@ -14,6 +15,7 @@ import { SkillSelector } from '@/components/SkillSelector';
 import { Button, Field } from '@/components/ui';
 import { getJob, upsertJob, type JobInput } from '@/lib/api';
 import { embedJob } from '@/lib/embeddings';
+import { EMPLOYMENT_TYPE_OPTIONS, WORKPLACE_TYPE_OPTIONS } from '@/lib/jobLabels';
 import { showAlert } from '@/lib/notify';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -24,11 +26,42 @@ const EMPTY: JobInput = {
   description: '',
   location: null,
   is_remote: false,
+  employment_type: 'full_time',
+  workplace_type: 'onsite',
   salary_min: null,
   salary_max: null,
   required_skills: [],
   is_active: true,
 };
+
+function ChipRow<T extends string>({ label, options, value, onChange }: {
+  label: string;
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <>
+      <Text className="mb-2 text-sm font-medium text-gray-700">{label}</Text>
+      <View className="mb-3 flex-row flex-wrap">
+        {options.map((o) => {
+          const selected = o.value === value;
+          return (
+            <Pressable
+              key={o.value}
+              onPress={() => onChange(o.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              className={`mb-2 mr-2 rounded-full px-4 py-2 ${selected ? 'bg-brand' : 'bg-white'}`}
+            >
+              <Text className={`text-sm font-semibold ${selected ? 'text-white' : 'text-gray-700'}`}>{o.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </>
+  );
+}
 
 const toInt = (s: string) => {
   const n = parseInt(s.replace(/[^0-9]/g, ''), 10);
@@ -48,7 +81,8 @@ export default function EditJobScreen() {
     if (!id) return;
     let cancelled = false;
     getJob(id)
-      .then(({ id: _id, recruiter_id: _r, created_at: _c, ...rest }) => {
+      // job_function and sponsors_visa are generated columns; writing them fails.
+      .then(({ id: _id, recruiter_id: _r, created_at: _c, job_function: _f, sponsors_visa: _v, ...rest }) => {
         if (!cancelled) setForm(rest);
       })
       .catch((e: Error) => {
@@ -130,13 +164,17 @@ export default function EditJobScreen() {
           autoCapitalize="none"
           keyboardType="url"
         />
-        <View className="mb-4 flex-row items-center justify-between rounded-xl bg-white px-4 py-3">
-          <Text className="text-base text-gray-800">Remote role</Text>
-          <Switch value={form.is_remote} onValueChange={(v) => set('is_remote', v)} trackColor={{ true: '#6C47FF' }} />
-        </View>
+        <ChipRow label="Job type" options={EMPLOYMENT_TYPE_OPTIONS} value={form.employment_type} onChange={(v) => set('employment_type', v)} />
+        <ChipRow
+          label="Location type"
+          options={WORKPLACE_TYPE_OPTIONS}
+          value={form.workplace_type}
+          // is_remote is what older app versions read.
+          onChange={(v) => setForm((f) => ({ ...f, workplace_type: v, is_remote: v === 'remote' }))}
+        />
         <Field
           label="Location"
-          placeholder={form.is_remote ? 'Optional, e.g. US time zones' : 'e.g. Charlotte, NC'}
+          placeholder={form.workplace_type === 'remote' ? 'Optional, e.g. US time zones' : 'e.g. Charlotte, NC'}
           value={form.location ?? ''}
           onChangeText={(v) => set('location', v)}
         />
