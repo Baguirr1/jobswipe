@@ -16,7 +16,7 @@ import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { Chip, NO_FILTERS } from '@/components/FilterSheet';
 import { groupByCity, JobMap } from '@/components/JobMap';
 import { getRecommendedJobs } from '@/lib/api';
-import { costOfLiving, payPicture } from '@/lib/cost';
+import { costOfLiving, payPicture, vsUs } from '@/lib/cost';
 import { ageDays, median, money, moneyExact } from '@/lib/format';
 import { C, matchColor, NUM, salaryColor } from '@/lib/theme';
 import type { RecommendedJob } from '@/lib/types';
@@ -172,7 +172,7 @@ function Body({ jobs, skills, twoCol }: { jobs: RecommendedJob[]; skills: string
       </View>
 
       <Text className="mt-2 text-xs leading-4 text-ink-3">
-        Cost-of-living figures are rounded estimates for one adult (US average = 100), with ~25% of pay to taxes. Use
+        Cost-of-living figures are rounded estimates for one adult (compared with the US average), with ~25% of pay to taxes. Use
         them to compare cities, not to budget. Pull down to refresh.
       </Text>
     </>
@@ -292,7 +292,7 @@ function CityTable({ jobs }: { jobs: RecommendedJob[] }) {
         <Chip label="Most jobs" selected={sort === 'jobs'} onPress={() => setSort('jobs')} />
       </View>
       <View className="flex-row border-b border-line pb-1.5">
-        {['City', 'Jobs', 'Median', 'COL', 'Feels like', 'Left/mo'].map((h, i) => (
+        {['City', 'Jobs', 'Median', 'Cost', 'Feels like', 'Left/mo'].map((h, i) => (
           <Text
             key={h}
             className={`text-[10.5px] font-bold uppercase tracking-wider text-ink-3 ${i === 0 ? 'flex-1' : 'w-[52px] text-right'}`}
@@ -310,7 +310,7 @@ function CityTable({ jobs }: { jobs: RecommendedJob[] }) {
             className={`w-[52px] text-right text-[12.5px] ${r.index >= 130 ? 'text-nope' : r.index < 95 ? 'text-like' : 'text-ink-2'}`}
             style={NUM}
           >
-            {r.index}
+            {vsUs(r.index)}
           </Text>
           <Text className="w-[52px] text-right text-[12.5px] font-bold text-ink" style={NUM}>{money(r.feels)}</Text>
           <Text className={`w-[52px] text-right text-[12.5px] ${r.left < 0 ? 'text-nope' : 'text-ink-2'}`} style={NUM}>
@@ -319,7 +319,7 @@ function CityTable({ jobs }: { jobs: RecommendedJob[] }) {
         </View>
       ))}
       <Text className="mt-2 text-[11px] text-ink-3">
-        Feels like = median pay ÷ cost index × 100. Left/mo = take-home minus typical rent and essentials.
+        Cost = living costs vs the US average. Feels like = what the median pay buys in an average US city. Left/mo = take-home minus typical rent and essentials.
       </Text>
     </View>
   );

@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 
 import { cityLabel, resolveCity, type City } from '@/lib/cities';
-import { costLabel, salaryMid } from '@/lib/cost';
+import { costLabel, salaryMid, vsUs, vsUsPhrase } from '@/lib/cost';
 import { median, money } from '@/lib/format';
 import { C, NUM, salaryColor } from '@/lib/theme';
 import { US_NATION_PATH, US_STATES_PATH, US_VIEWBOX } from '@/lib/usmap';
@@ -162,7 +162,7 @@ export function JobMap({
                 onPress={onSelect ? () => toggle(r.label) : undefined}
                 accessibilityRole={onSelect ? 'button' : undefined}
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={`${r.label}: ${r.count} jobs, median ${r.medianSalary ? money(r.medianSalary) : 'salary not listed'}, cost index ${r.city.costIndex}`}
+                accessibilityLabel={`${r.label}: ${r.count} jobs, median ${r.medianSalary ? money(r.medianSalary) : 'salary not listed'}, living costs ${vsUsPhrase(r.city.costIndex)}`}
                 className={`flex-row items-center rounded-lg px-1.5 py-1.5 ${on ? 'bg-brand-light' : ''}`}
               >
                 <View
@@ -187,7 +187,7 @@ export function JobMap({
                   style={NUM}
                   accessibilityLabel={costLabel(r.city.costIndex)}
                 >
-                  COL {r.city.costIndex}
+                  {vsUs(r.city.costIndex)}
                 </Text>
               </Pressable>
             );
@@ -203,7 +203,7 @@ export function JobMap({
             </Text>
           ) : null}
           {rows.length ? (
-            <Text className="mt-1 text-[11px] text-ink-3">COL = cost of living, US average = 100.</Text>
+            <Text className="mt-1 text-[11px] text-ink-3">Last column: cost of living vs the US average.</Text>
           ) : null}
         </View>
       ) : null}

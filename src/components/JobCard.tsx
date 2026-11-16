@@ -4,7 +4,7 @@ import { ScrollView } from 'react-native-gesture-handler';
 import Svg, { Circle } from 'react-native-svg';
 
 import { CompanyLogo, Tag } from '@/components/ui';
-import { costLabel, EST_TAX_RATE, payPicture, type PayPicture } from '@/lib/cost';
+import { EST_TAX_RATE, payPicture, vsUs, vsUsPhrase, type PayPicture } from '@/lib/cost';
 import { ageDays, formatSalaryRange, money, moneyExact, postedAgo, sourceLabel } from '@/lib/format';
 import { explainMatch } from '@/lib/matchReasons';
 import { C, matchColor, NUM, salaryColor } from '@/lib/theme';
@@ -247,8 +247,8 @@ function CostBox({ pay, remote }: { pay: PayPicture; remote: boolean }) {
       <View className="flex-row" style={{ gap: 8 }}>
         <Stat
           label="Cost of living"
-          value={pay.col.estimated ? '—' : String(pay.col.index)}
-          sub={pay.col.estimated ? (remote ? 'Depends on you' : 'Not in our data') : costLabel(pay.col.index)}
+          value={pay.col.estimated ? 'US avg' : vsUs(pay.col.index)}
+          sub={pay.col.estimated ? (remote ? 'Depends where you live' : 'Not in our data') : 'vs US average'}
           tone={pay.col.index >= 130 ? 'warn' : undefined}
         />
         <Stat label="Feels like" value={money(pay.adjusted)} sub="in an avg US city" />
@@ -301,7 +301,7 @@ function CostBreakdown({ pay, remote }: { pay: PayPicture; remote: boolean }) {
           ? remote
             ? 'Remote role: figures use US-average costs. Your own city changes the picture.'
             : 'We don’t have cost data for this place yet, so US-average costs are used.'
-          : `Cost-of-living index ${pay.col.index} (US average 100): ${money(pay.mid)} here buys about what ${money(pay.adjusted)} does in an average US city.`}{' '}
+          : `Living costs here are ${vsUsPhrase(pay.col.index)}, so ${money(pay.mid)} here buys about what ${money(pay.adjusted)} does in an average US city.`}{' '}
         Rounded estimates for one adult; use them to compare offers, not to budget.
       </Text>
     </View>

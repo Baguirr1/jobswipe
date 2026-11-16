@@ -76,6 +76,20 @@ export function payPicture(job: {
   return { mid, col, adjusted: adjustedSalary(mid, col), leftover: monthlyLeftover(mid, col) };
 }
 
+/** Index as a difference from the US average: 130 → "+30%", 90 → "−10%", 100 → "US avg". */
+export function vsUs(index: number): string {
+  const d = Math.round(index - 100);
+  if (d === 0) return 'US avg';
+  return `${d > 0 ? '+' : '−'}${Math.abs(d)}%`;
+}
+
+/** The same, as a phrase: "30% above the US average". */
+export function vsUsPhrase(index: number): string {
+  const d = Math.round(index - 100);
+  if (d === 0) return 'about the same as the US average';
+  return `${Math.abs(d)}% ${d > 0 ? 'above' : 'below'} the US average`;
+}
+
 export function costLabel(index: number): string {
   if (index >= 140) return 'Very high cost';
   if (index >= 115) return 'High cost';
