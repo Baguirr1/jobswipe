@@ -1,6 +1,6 @@
 # Swipe-fit model
 
-A scikit-learn pipeline that predicts **P(candidate swipes right | profile, job)** from JobSwipe swipe data, served with FastAPI on Modal. It follows the HW4 layout (`pipeline_def.py` → `build_pipeline.py` → `pipeline.joblib` → `serve.py` → `modal_serve.py`).
+A scikit-learn pipeline that predicts **P(candidate swipes right | profile, job)** from JobSwipe swipe data, served with FastAPI on Modal.  (`pipeline_def.py` → `build_pipeline.py` → `pipeline.joblib` → `serve.py` → `modal_serve.py`).
 
 ## Pipeline
 
