@@ -1,0 +1,51 @@
+name: Database
+
+# Applies every migration + seed to a fresh local Supabase Postgres, then runs
+# the pgTAP tests in supabase/tests/database (RLS, RPC caller checks, triggers).
+# Only the database container is started; no secrets or remote project needed.
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "supabase/seed.sql"
+      - "supabase/config.toml"
+      - ".github/workflows/database.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "supabase/seed.sql"
+      - "supabase/config.toml"
+      - ".github/workflows/database.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pgtap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          # Same CLI version used locally.
+          version: 3.2.0
+
+      - name: Start Postgres (applies migrations and seed.sql)
+        run: supabase db start
+
+      - name: Run pgTAP tests
+        run: supabase test db
+
+      - name: Postgres logs on failure
+        if: failure()
+        run: docker logs $(docker ps -qf "name=supabase_db") 2>&1 | tail -100
