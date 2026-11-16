@@ -1,0 +1,47 @@
+name: Edge Functions
+
+# Type-checks the Supabase Edge Functions and runs their offline Deno tests
+# (job-board parsers, dedup, fetch retries). No database or secrets needed.
+on:
+  pull_request:
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/edge-functions.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/edge-functions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-functions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          # Same version used locally (npx deno@2.1.4).
+          deno-version: v2.1.4
+
+      # --node-modules-dir=none: the repo's package.json is the Expo app's.
+      # Edge Functions resolve their own npm: imports, as in Supabase.
+      - name: Type-check functions
+        run: >
+          deno check --node-modules-dir=none
+          supabase/functions/embed/index.ts
+          supabase/functions/import-jobs/index.ts
+          supabase/functions/parse-resume/index.ts
+
+      - name: Run tests
+        # --allow-read: fixtures only. Tests stub fetch, so no network access.
+        run: deno test --node-modules-dir=none --allow-read supabase/functions/_shared/tests/
