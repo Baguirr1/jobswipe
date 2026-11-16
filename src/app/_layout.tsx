@@ -1,12 +1,14 @@
 import '../global.css';
 
-import { Stack } from 'expo-router';
+import { router, Stack, type Href } from 'expo-router';
+import { ChevronLeft } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui';
+import { C } from '@/lib/theme';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 
 export default function RootLayout() {
@@ -52,7 +54,16 @@ function RootNavigator() {
   const onboarded = !!profile?.onboarded;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        headerStyle: { backgroundColor: C.canvas },
+        headerShadowVisible: false,
+        headerTitleStyle: { fontWeight: '800', color: C.ink },
+        headerTintColor: C.ink,
+        headerLeft: () => <BackButton />,
+      }}
+    >
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" />
       </Stack.Protected>
@@ -63,7 +74,10 @@ function RootNavigator() {
 
       <Stack.Protected guard={signedIn && onboarded}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="chat/[matchId]" options={{ headerShown: true, title: '' }} />
+        <Stack.Screen
+          name="chat/[matchId]"
+          options={{ headerShown: true, title: '', headerLeft: () => <BackButton fallback="/matches" label="Matches" /> }}
+        />
         <Stack.Screen
           name="job/edit"
           options={{ headerShown: true, title: 'Job listing', presentation: 'modal' }}
@@ -73,5 +87,25 @@ function RootNavigator() {
         <Stack.Screen name="profile-edit" options={{ headerShown: true, title: 'Edit profile' }} />
       </Stack.Protected>
     </Stack>
+  );
+}
+
+/**
+ * Back button drawn as a vector icon (the default header arrow is an image that
+ * may not load on the web). With no history to go back to, e.g. a chat opened
+ * from a link, it goes to `fallback` instead.
+ */
+function BackButton({ fallback = '/', label = 'Back' }: { fallback?: Href; label?: string }) {
+  return (
+    <Pressable
+      onPress={() => (router.canGoBack() ? router.back() : router.replace(fallback))}
+      accessibilityRole="button"
+      accessibilityLabel={`Back to ${label}`}
+      hitSlop={10}
+      className="-ml-1 mr-2 flex-row items-center rounded-full py-1 pl-1 pr-2 active:opacity-60"
+    >
+      <ChevronLeft size={24} color={C.accent} strokeWidth={2.4} />
+      <Text className="text-[15px] font-semibold text-brand">{label}</Text>
+    </Pressable>
   );
 }
