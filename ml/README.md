@@ -22,9 +22,29 @@ Two feature groups exist but are **off by default**, because the current data te
 - `include_salary=True` adds `log_salary_ratio` and `salary_known`. Only 9 of 176 swipes had both salaries, and all 9 were left swipes, so the model learned "known salary = pass" even when the pay fit.
 - `include_missing_flag=True` adds `similarity_missing`. Swipes made before a profile was embedded were mostly test swipes (36% right vs. 12%). With this flag, CV AUC rose to 0.78, but the model scored an empty profile (0.78) above a strong fit (0.21). It had learned how the app was tested, not job fit.
 
-## Results (176 swipes, 4 users, 32 right)
+## Evaluation and snapshots
 
-5-fold stratified CV: **ROC AUC 0.61 ± 0.06**, balanced accuracy 0.52. That's weak but honest for this little data. The largest coefficients are embedding similarity (+0.53) and skills matched (+0.26). Retrain as real users swipe.
+The saved estimator wraps the full pipeline in sigmoid `CalibratedClassifierCV`.
+Outer evaluation and inner calibration use candidate-disjoint `StratifiedGroupKFold`
+indices, falling back to `GroupKFold` or fewer folds with warnings. Metadata reports
+ROC AUC, balanced accuracy, F1, Brier score and log loss. Coefficients describe a
+separate uncalibrated fit. Insufficient groups/labels make evaluation unavailable;
+final training fails clearly if group-aware calibration is impossible.
+
+When `created_at` is present, a separate earliest-80% / latest-20% holdout keeps
+timestamp ties together. Candidates may appear on both sides; overlap is reported.
+Missing timestamps make this test unavailable. These evaluations supersede the
+previous row-stratified scores.
+
+The export reads point-in-time snapshots from `swipe_events`, captured on
+inserts and direction updates (`source = 'event'`). Swipes from before migration
+`20261116000000` have no snapshot, so they are still exported by joining to the
+*current* profile/job and flagged `source = 'legacy'`; their features may
+postdate the label. Once enough events exist, train with
+`python ml/build_pipeline.py --events-only`. Metadata records `rows_by_source`.
+Undo/delete leaves events intact and creates no event. `model_version` is
+initially null. Events cascade-delete with their profile/job (account deletion
+removes training history). Clients can only SELECT their own events.
 
 ## Privacy
 

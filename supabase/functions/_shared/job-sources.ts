@@ -251,6 +251,14 @@ export function dedupeJobs(jobs: ImportedJob[]): ImportedJob[] {
 export interface AtsOptions {
   earlyCareerOnly?: boolean;
   usOnly?: boolean;
+  /**
+   * Called with the external_id of every qualifying posting on the board's
+   * index, including ones skipped by a detail-fetch cap. The importer uses it
+   * to keep those listings alive instead of retiring them as unseen.
+   */
+  onListed?: (externalId: string) => void;
+  /** Non-fatal problems (e.g. a detail page that failed after retries). */
+  onWarning?: (message: string) => void;
 }
 
 // Only intern/internship overrides a senior word ("Senior Intern" is still an
@@ -292,14 +300,53 @@ export function jobFingerprint(j: ImportedJob): string {
 // Context is supplied separately from the URL so credentials never appear in errors.
 export interface JobRequestInit extends RequestInit { provider?: string; company?: string; timeoutMs?: number }
 
+export class JobRequestError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+  }
+}
+
+// Retries for rate limits (429) and server errors (5xx). Kept small: runs share
+// one Edge Function time budget, so a dead API must not eat the whole run.
+const MAX_RETRIES = 2;
+const MAX_RETRY_WAIT_MS = 5000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function retryDelayMs(attempt: number, retryAfter: string | null): number {
+  const seconds = Number(retryAfter);
+  const hinted = Number.isFinite(seconds) && seconds >= 0
+    ? seconds * 1000
+    : retryAfter ? Date.parse(retryAfter) - Date.now() : NaN;
+  const backoff = 500 * 2 ** attempt + Math.random() * 250;
+  return Math.min(Number.isFinite(hinted) && hinted > 0 ? hinted : backoff, MAX_RETRY_WAIT_MS);
+}
+
 export async function fetchText(url: string, init: JobRequestInit = {}): Promise<string> {
   // The timeout also covers reading the body, so large boards need more time.
   const { provider = 'Jobs', company = '', timeoutMs = 15000, ...request } = init;
   const headers = new Headers(request.headers);
   if (!headers.has('Accept')) headers.set('Accept', 'text/plain, application/xml, text/xml');
-  const response = await fetch(url, { ...request, headers, signal: AbortSignal.timeout(timeoutMs) });
-  if (!response.ok) throw new Error(`${provider} ${company} request failed (${response.status})`);
-  return response.text();
+  for (let attempt = 0; ; attempt++) {
+    let response: Response;
+    try {
+      response = await fetch(url, { ...request, headers, signal: AbortSignal.timeout(timeoutMs) });
+    } catch (e) {
+      // Network errors and timeouts: retry, then report without the URL.
+      if (attempt < MAX_RETRIES) {
+        await sleep(retryDelayMs(attempt, null));
+        continue;
+      }
+      throw new JobRequestError(`${provider} ${company} request failed (${(e as Error).name})`);
+    }
+    if (response.ok) return response.text();
+    const retryable = response.status === 429 || response.status >= 500;
+    if (retryable && attempt < MAX_RETRIES) {
+      await response.body?.cancel();
+      await sleep(retryDelayMs(attempt, response.headers.get('Retry-After')));
+      continue;
+    }
+    throw new JobRequestError(`${provider} ${company} request failed (${response.status})`, response.status);
+  }
 }
 
 export async function fetchJson<T = unknown>(url: string, init: JobRequestInit = {}): Promise<T> {
@@ -364,18 +411,24 @@ const GREENHOUSE_MAX_DETAILS = 60;
 export async function fetchGreenhouse(company: string, opts: AtsOptions = {}): Promise<ImportedJob[]> {
   const base = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(company)}/jobs`;
   const body = await fetchJson<{ jobs?: GreenhouseResult[] }>(base, { provider: 'Greenhouse', company, timeoutMs: 30000 });
-  const matches = (body.jobs ?? [])
-    .filter(r => normalizeGreenhouse({ ...r, content: '' }, company, opts) !== null)
-    .slice(0, GREENHOUSE_MAX_DETAILS);
+  const qualifying = (body.jobs ?? [])
+    .filter(r => normalizeGreenhouse({ ...r, content: '' }, company, opts) !== null);
+  // Every qualifying posting is still live, even the ones past the detail cap.
+  for (const r of qualifying) opts.onListed?.(`${company}:${r.id}`);
+  const matches = qualifying.slice(0, GREENHOUSE_MAX_DETAILS);
   const jobs: ImportedJob[] = [];
+  let failed = 0;
   for (const r of matches) {
     try {
       const detail = await fetchJson<GreenhouseResult>(`${base}/${encodeURIComponent(String(r.id))}`, { provider: 'Greenhouse', company });
       add(jobs, normalizeGreenhouse({ ...r, content: detail.content }, company, opts));
-    } catch {
-      // A posting closed between the list and detail calls: skip it.
+    } catch (e) {
+      // 404: the posting closed between the list and detail calls. Anything
+      // else (after retries) is worth surfacing, but shouldn't sink the board.
+      if (!(e instanceof JobRequestError && e.status === 404)) failed++;
     }
   }
+  if (failed) opts.onWarning?.(`greenhouse ${company}: ${failed}/${matches.length} detail requests failed`);
   return jobs;
 }
 
@@ -458,8 +511,11 @@ export async function fetchSmartRecruiters(company: string, opts: AtsOptions = {
     for (const row of rows) {
       const { location, remote, hints } = smartFields(row);
       if (seen.has(row.id) || !eligible(row.name, hints, location, remote, row.location?.country, opts)) continue;
-      if (details >= 40) return jobs;
       seen.add(row.id);
+      opts.onListed?.(`${company}:${row.id}`);
+      // Past the detail cap, keep paging so every live posting is reported as
+      // listed, but don't fetch more descriptions.
+      if (details >= 40) continue;
       details++;
       const detail = await fetchJson<Partial<SmartRecruitersResult>>(`${base}/${encodeURIComponent(row.id)}`, { provider: 'SmartRecruiters', company });
       add(jobs, normalizeSmartRecruiters({ ...row, ...detail }, company, opts));
