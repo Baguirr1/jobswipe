@@ -36,19 +36,36 @@ revoke all on public.import_runs from anon, authenticated;
 create view public.import_health
 with (security_invoker = true) as
 with per_source as (
-  select unnest(r.sources) as source, r.*
+  select s.source, r.started_at, r.ok, r.errors, r.id
   from public.import_runs r
+  cross join lateral unnest(r.sources) as s(source)
+),
+latest as (
+  -- DISTINCT ON, not array_agg(errors): errors is text[], and array_agg can't
+  -- mix empty and non-empty arrays ("different dimensionality").
+  select distinct on (source) source, ok as latest_ok, errors as latest_errors
+  from per_source
+  order by source, started_at desc, id desc
+),
+stats as (
+  select
+    source,
+    max(started_at)                   as last_run_at,
+    max(started_at) filter (where ok) as last_ok_at,
+    count(*) filter (where not ok and started_at > now() - interval '7 days') as failed_runs_7d
+  from per_source
+  group by source
 )
 select
-  source,
-  max(started_at)                                   as last_run_at,
-  max(started_at) filter (where ok)                 as last_ok_at,
-  (array_agg(ok order by started_at desc))[1]       as latest_ok,
-  (array_agg(errors order by started_at desc))[1]   as latest_errors,
-  count(*) filter (where not ok and started_at > now() - interval '7 days') as failed_runs_7d,
-  now() - max(started_at) filter (where ok) > interval '36 hours'          as is_stale
-from per_source
-group by source;
+  s.source,
+  s.last_run_at,
+  s.last_ok_at,
+  l.latest_ok,
+  l.latest_errors,
+  s.failed_runs_7d,
+  coalesce(now() - s.last_ok_at > interval '36 hours', true) as is_stale
+from stats s
+join latest l using (source);
 
 revoke all on public.import_health from anon, authenticated;
 
