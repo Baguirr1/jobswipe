@@ -2,12 +2,19 @@
 begin;
 select plan(21);
 select tests.seed_fixtures();
+-- The feed-filter counts below assume only fixture jobs exist: hide jobs from
+-- seed.sql (rolled back with the rest of this file).
+update public.jobs set is_active = false
+where id not in ('b0000000-0000-4000-8000-00000000000a', 'b0000000-0000-4000-8000-00000000000b',
+                 'b0000000-0000-4000-8000-00000000000c');
 -- Round-two fixtures: only Job A is unseen by c2; Job C is unseen by c1.
 update public.jobs set salary_min = 80000, required_skills = array['TypeScript']
 where id = 'b0000000-0000-4000-8000-00000000000a';
 update public.profiles set skills = array['typescript']
 where id = 'c2000000-0000-4000-8000-000000000002';
-update public.jobs set source = 'external', apply_url = 'https://example.com/apply'
+-- External listings need both external_id and apply_url (jobs_external_fields).
+update public.jobs set source = 'external', external_id = 'globex:job-c',
+       apply_url = 'https://example.com/apply'
 where id = 'b0000000-0000-4000-8000-00000000000c';
 
 -- Recruiter r2 poking at r1's job
