@@ -65,6 +65,9 @@ export interface JobFilters {
   /** Hides jobs without a listed salary when set. */
   minSalary: number | null;
   location: string;
+  keyword: string;
+  postedWithinDays: 1 | 7 | 30 | null;
+  level: 'internship' | 'entry' | 'senior' | null;
 }
 
 /** Aggregates returned by get_job_insights(). */

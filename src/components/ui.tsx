@@ -1,3 +1,5 @@
+import { Eye, EyeOff } from 'lucide-react-native';
+import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, Text, TextInput, View, type TextInputProps } from 'react-native';
 
 import { initials } from '@/lib/format';
@@ -52,6 +54,35 @@ export function Field({ label, ...props }: TextInputProps & { label?: string }) 
         textAlignVertical={props.multiline ? 'top' : 'center'}
         {...props}
       />
+    </View>
+  );
+}
+
+/** Password input with a Show/Hide toggle. */
+export function PasswordField({ label, ...props }: Omit<TextInputProps, 'secureTextEntry'> & { label?: string }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <View className="mb-4">
+      {label ? <Text className="mb-1.5 text-sm font-medium text-gray-700">{label}</Text> : null}
+      <View className="h-12 flex-row items-center rounded-xl border border-gray-200 bg-white">
+        <TextInput
+          placeholderTextColor="#9CA3AF"
+          className="h-12 flex-1 px-4 text-base text-gray-900"
+          secureTextEntry={!visible}
+          autoCapitalize="none"
+          autoCorrect={false}
+          {...props}
+        />
+        <Pressable
+          onPress={() => setVisible((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel={visible ? 'Hide password' : 'Show password'}
+          hitSlop={8}
+          className="h-12 w-12 items-center justify-center"
+        >
+          {visible ? <EyeOff size={20} color="#6B7280" /> : <Eye size={20} color="#6B7280" />}
+        </Pressable>
+      </View>
     </View>
   );
 }

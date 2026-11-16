@@ -58,6 +58,9 @@ export async function getRecommendedJobs(
       p_remote_only: filters?.remoteOnly ?? false,
       p_min_salary: filters?.minSalary ?? null,
       p_location: filters?.location.trim() || null,
+      p_keyword: filters?.keyword?.trim() || null,
+      p_posted_within_days: filters?.postedWithinDays ?? null,
+      p_level: filters?.level ?? null,
     }),
   );
 }
