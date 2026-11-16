@@ -35,7 +35,19 @@ export interface Job {
   source: string;
   /** Imported jobs only: where the candidate applies. */
   apply_url: string | null;
+  employment_type: EmploymentType;
+  workplace_type: WorkplaceType;
+  /** Derived from the title by the database; read-only. */
+  job_function: JobFunction;
+  /** Derived from the description: true = sponsors, false = rules it out, null = doesn't say. Read-only. */
+  sponsors_visa: boolean | null;
 }
+
+export type EmploymentType = 'full_time' | 'part_time' | 'internship' | 'contract' | 'temporary';
+export type WorkplaceType = 'onsite' | 'hybrid' | 'remote';
+export type JobFunction =
+  | 'engineering' | 'data' | 'design' | 'product' | 'marketing' | 'sales' | 'finance'
+  | 'operations' | 'people' | 'legal' | 'healthcare' | 'education' | 'customer_support' | 'other';
 
 /** An imported job the candidate swiped right on (applied to off-platform). */
 /** Where a saved job is in the candidate's search. Private to the candidate. */
@@ -69,13 +81,19 @@ export interface SavedJob {
 
 /** Discover filters, applied server-side. */
 export interface JobFilters {
-  remoteOnly: boolean;
+  /** Empty = any. Like Handshake's job type / location type / job function filters. */
+  employmentTypes: EmploymentType[];
+  workplaceTypes: WorkplaceType[];
+  jobFunctions: JobFunction[];
+  company: string;
+  /** 'open': hide jobs that rule out sponsorship; 'offered': only jobs that say they sponsor. */
+  sponsorship: 'open' | 'offered' | null;
   /** Hides jobs without a listed salary when set. */
   minSalary: number | null;
   location: string;
   keyword: string;
   postedWithinDays: 1 | 7 | 30 | null;
-  level: 'internship' | 'entry' | 'senior' | null;
+  level: 'entry' | 'senior' | null;
   quickApplyOnly: boolean;
   salaryListed: boolean;
   skillsMatch: boolean;

@@ -5,6 +5,7 @@ import { ScrollView } from 'react-native-gesture-handler';
 import { SwipeBackground } from '@/components/SwipeBackground';
 import { CompanyLogo, Tag } from '@/components/ui';
 import { formatSalaryRange, sourceLabel } from '@/lib/format';
+import { employmentTypeLabel, workplaceTypeLabel } from '@/lib/jobLabels';
 import { explainMatch, summarizeMatch } from '@/lib/matchReasons';
 import type { Profile, RecommendedJob } from '@/lib/types';
 
@@ -57,7 +58,8 @@ export function JobCardFront({ job, me }: Props) {
         <View className="mt-4 flex-row items-center">
           <MapPin size={15} color="#DDD6FE" />
           <Text className="ml-2 flex-1 text-sm text-purple-100" numberOfLines={2}>
-            {[job.location, job.is_remote ? 'Remote' : 'On-site'].filter(Boolean).join(' · ')}
+            {[job.location, workplaceTypeLabel(job.workplace_type) ?? (job.is_remote ? 'Remote' : 'On-site'), employmentTypeLabel(job.employment_type)]
+              .filter(Boolean).join(' · ')}
           </Text>
         </View>
         <Text className="mt-4 text-2xl font-bold text-white">{formatSalaryRange(job.salary_min, job.salary_max)}</Text>

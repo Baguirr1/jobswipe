@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { NO_FILTERS } from '@/components/FilterSheet';
+import { isEmploymentType, isJobFunction, isWorkplaceType } from '@/lib/jobLabels';
 import type { JobFilters } from '@/lib/types';
 
 const STORAGE_KEY = 'jobswipe:filters:v1';
@@ -10,7 +11,16 @@ function restoreFilters(value: unknown): JobFilters {
   const filters = { ...NO_FILTERS };
   if (!value || typeof value !== 'object' || Array.isArray(value)) return filters;
   const stored = value as Record<string, unknown>;
-  if (typeof stored.remoteOnly === 'boolean') filters.remoteOnly = stored.remoteOnly;
+  const list = <T,>(v: unknown, is: (x: unknown) => x is T): T[] =>
+    Array.isArray(v) ? [...new Set(v.filter(is))] : [];
+  filters.employmentTypes = list(stored.employmentTypes, isEmploymentType);
+  filters.workplaceTypes = list(stored.workplaceTypes, isWorkplaceType);
+  filters.jobFunctions = list(stored.jobFunctions, isJobFunction);
+  if (typeof stored.company === 'string') filters.company = stored.company;
+  if (stored.sponsorship === 'open' || stored.sponsorship === 'offered') filters.sponsorship = stored.sponsorship;
+  // Filters saved by earlier versions: "Remote only" and the internship level.
+  if (stored.remoteOnly === true && !filters.workplaceTypes.length) filters.workplaceTypes = ['remote'];
+  if (stored.level === 'internship' && !filters.employmentTypes.length) filters.employmentTypes = ['internship'];
   if (typeof stored.minSalary === 'number' && Number.isFinite(stored.minSalary) && stored.minSalary >= 0) {
     filters.minSalary = stored.minSalary;
   }
@@ -19,7 +29,7 @@ function restoreFilters(value: unknown): JobFilters {
   if (stored.postedWithinDays === 1 || stored.postedWithinDays === 7 || stored.postedWithinDays === 30) {
     filters.postedWithinDays = stored.postedWithinDays;
   }
-  if (stored.level === 'internship' || stored.level === 'entry' || stored.level === 'senior') {
+  if (stored.level === 'entry' || stored.level === 'senior') {
     filters.level = stored.level;
   }
   if (typeof stored.quickApplyOnly === 'boolean') filters.quickApplyOnly = stored.quickApplyOnly;
