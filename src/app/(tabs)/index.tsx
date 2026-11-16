@@ -10,10 +10,11 @@ import { JobCardBack, JobCardFront } from '@/components/JobCard';
 import { MatchModal } from '@/components/MatchModal';
 import { SwipeBackground } from '@/components/SwipeBackground';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/SwipeDeck';
+import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { useSwipeQueue } from '@/hooks/useSwipeQueue';
 import { getRecommendedJobs, swipeJob, undoSwipe } from '@/lib/api';
 import { backfillJobEmbeddings, embedMyProfile } from '@/lib/embeddings';
-import type { JobFilters, RecommendedJob, SwipeDirection } from '@/lib/types';
+import type { RecommendedJob, SwipeDirection } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
 
 const BATCH_SIZE = 20;
@@ -23,7 +24,7 @@ export default function DiscoverScreen() {
   const { profile } = useAuth();
   const deck = useRef<SwipeDeckHandle>(null);
   const candidateId = profile?.id;
-  const [filters, setFilters] = useState<JobFilters>(NO_FILTERS);
+  const [filters, setFilters] = usePersistedFilters();
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Ranked by pgvector cosine distance; already-swiped jobs are excluded server-side.
@@ -34,7 +35,7 @@ export default function DiscoverScreen() {
   );
   // Imported jobs have no recruiter in the app, so a right swipe saves the job
   // for applying on the original site instead of waiting for a match.
-  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const [savedNotice, setSavedNotice] = useState<{ text: string; toSaved: boolean } | null>(null);
   const undo = useCallback(async (job: RecommendedJob) => {
     await undoSwipe(job.id);
     setSavedNotice(null);
@@ -42,13 +43,18 @@ export default function DiscoverScreen() {
   const persist = useCallback(async (job: RecommendedJob, direction: SwipeDirection) => {
     const matchId = await swipeJob(job.id, direction);
     if (direction === 'right' && job.source !== 'jobswipe') {
-      setSavedNotice(`Saved ${job.title}. Apply from the Saved tab.`);
+      setSavedNotice({ text: `Saved ${job.title}. Apply from the Saved tab.`, toSaved: true });
+    } else if (direction === 'right' && !matchId) {
+      setSavedNotice({
+        text: `Applied to ${job.company_name}. They can now see your profile — you’ll match if they like you back.`,
+        toSaved: false,
+      });
     }
     return matchId;
   }, []);
   useEffect(() => {
     if (!savedNotice) return;
-    const t = setTimeout(() => setSavedNotice(null), 2500);
+    const t = setTimeout(() => setSavedNotice(null), 4000);
     return () => clearTimeout(t);
   }, [savedNotice]);
 
@@ -153,11 +159,11 @@ export default function DiscoverScreen() {
       ) : null}
       {savedNotice ? (
         <Pressable
-          onPress={() => router.push('/saved')}
+          onPress={() => (savedNotice.toSaved ? router.push('/saved') : setSavedNotice(null))}
           className="mx-5 mb-2 rounded-xl bg-brand-light px-4 py-3"
         >
           <Text className="text-sm font-medium text-brand-dark" numberOfLines={2}>
-            {savedNotice}
+            {savedNotice.text}
           </Text>
         </Pressable>
       ) : null}
@@ -232,7 +238,13 @@ export default function DiscoverScreen() {
         </View>
       )}
 
-      {feed.items.length > 0 ? <Text className="pb-4 text-center text-xs font-medium text-gray-800">Swipe left to pass · right to {topIsImported ? 'save' : 'apply'}</Text> : null}
+      {feed.items.length > 0 ? (
+        <Text className="px-6 pb-4 text-center text-xs font-medium text-gray-800">
+          {topIsImported
+            ? 'External listing · swipe right to save, apply on their site'
+            : `Quick apply · swipe right to send ${top.company_name} your profile`}
+        </Text>
+      ) : null}
       </View>
       <FilterSheet
         visible={filtersOpen}

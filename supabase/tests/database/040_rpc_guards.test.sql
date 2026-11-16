@@ -1,6 +1,6 @@
 -- security definer RPCs bypass RLS, so each must check the caller itself.
 begin;
-select plan(11);
+select plan(13);
 select tests.seed_fixtures();
 
 -- Recruiter r2 poking at r1's job
@@ -21,6 +21,12 @@ select throws_ok($$ select * from public.get_recommended_jobs_for_candidate('c10
   '42501', null, 'get_recommended_jobs_for_candidate: only for yourself');
 select lives_ok($$ select * from public.get_recommended_jobs_for_candidate('c2000000-0000-4000-8000-000000000002') $$,
   'get_recommended_jobs_for_candidate works for yourself');
+select is((select count(*) from public.get_recommended_jobs_for_candidate(
+  'c2000000-0000-4000-8000-000000000002', p_keyword => '  aCmE  ')),
+  1::bigint, 'keyword matches company case-insensitively and trims whitespace');
+select is((select count(*) from public.get_recommended_jobs_for_candidate(
+  'c2000000-0000-4000-8000-000000000002', p_level => 'senior')),
+  0::bigint, 'senior filter excludes titles without a senior marker');
 select throws_ok($$ select public.swipe_job('b0000000-0000-4000-8000-00000000000b', 'right') $$,
   'P0002', null, 'swipe_job rejects inactive jobs');
 select throws_ok($$ select public.set_saved_job_applied('b0000000-0000-4000-8000-00000000000a', true) $$,
