@@ -40,3 +40,7 @@ yarn-error.*
 /ios
 /android
 .env
+
+# ML training data (exported from Supabase; keep out of git)
+ml/data/
+ml/__pycache__/
