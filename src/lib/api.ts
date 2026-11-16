@@ -187,33 +187,50 @@ export async function swipeCandidate(
 
 // ---------- Matches & chat ----------
 
+// Other people's profiles aren't readable directly (they hold resume text and
+// salary); names and avatars come from get_profile_cards(), which only returns
+// those columns and only for match counterparts.
 const MATCH_SELECT = `
   id, candidate_id, job_id, recruiter_id, created_at,
-  job:jobs!inner ( id, title, company_name, company_logo ),
-  candidate:profiles!matches_candidate_id_fkey ( id, full_name, avatar_url ),
-  recruiter:profiles!matches_recruiter_id_fkey ( id, full_name, avatar_url )
+  job:jobs!inner ( id, title, company_name, company_logo )
 `;
+
+type MatchRow = Omit<MatchWithDetails, 'candidate' | 'recruiter'>;
+type ProfileCard = MatchWithDetails['candidate'];
+
+async function withProfileCards(matches: MatchRow[]): Promise<MatchWithDetails[]> {
+  const ids = [...new Set(matches.flatMap((m) => [m.candidate_id, m.recruiter_id]))];
+  const cards = ids.length
+    ? unwrap<ProfileCard[]>(await supabase.rpc('get_profile_cards', { p_ids: ids }))
+    : [];
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  const card = (id: string): ProfileCard => byId.get(id) ?? { id, full_name: null, avatar_url: null };
+  return matches.map((m) => ({ ...m, candidate: card(m.candidate_id), recruiter: card(m.recruiter_id) }));
+}
 
 export async function getMatches(): Promise<MatchWithDetails[]> {
   // RLS limits rows to matches the current user participates in.
-  return unwrap(
+  const rows = unwrap(
     await supabase
       .from('matches')
       .select(MATCH_SELECT)
       .order('created_at', { ascending: false })
-      .returns<MatchWithDetails[]>(),
+      .returns<MatchRow[]>(),
   );
+  return withProfileCards(rows);
 }
 
 export async function getMatch(matchId: string): Promise<MatchWithDetails> {
-  return unwrap(
+  const row = unwrap<MatchRow>(
     await supabase
       .from('matches')
       .select(MATCH_SELECT)
       .eq('id', matchId)
-      .returns<MatchWithDetails>()
+      .returns<MatchRow>()
       .single(),
   );
+  const [match] = await withProfileCards([row]);
+  return match;
 }
 
 export async function getMessages(matchId: string, limit = 100): Promise<Message[]> {

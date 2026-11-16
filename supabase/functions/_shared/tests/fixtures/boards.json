@@ -1,0 +1,90 @@
+{
+  "greenhouse": {
+    "id": 101,
+    "title": "Software Engineering Intern",
+    "absolute_url": "https://example.test/jobs/101",
+    "location": { "name": "Austin, TX" },
+    "content": "&lt;p&gt;Build Python &amp;amp; SQL tools.&lt;/p&gt;",
+    "company_name": "Acme Inc."
+  },
+  "lever": {
+    "id": "lv-1",
+    "text": "Junior Developer",
+    "hostedUrl": "https://example.test/jobs/lv-1",
+    "categories": { "location": "Remote, United States" },
+    "country": "US",
+    "workplaceType": "remote",
+    "descriptionPlain": "Build services.",
+    "lists": [
+      {
+        "text": "Requirements",
+        "content": "<ul><li>Python &amp; SQL</li></ul>"
+      }
+    ],
+    "salaryRange": { "min": 90000, "max": 70000, "interval": "yearly" }
+  },
+  "ashby": {
+    "id": "as-1",
+    "title": "Graduate Engineer",
+    "location": "New York, NY",
+    "jobUrl": "https://example.test/jobs/as-1",
+    "descriptionHtml": "<p>Build Python &amp; TypeScript apps.</p>",
+    "address": { "postalAddress": { "addressCountry": "US" } },
+    "compensation": {
+      "summaryComponents": [
+        {
+          "compensationType": "Salary",
+          "interval": "annual",
+          "minValue": 80000,
+          "maxValue": 100000
+        }
+      ]
+    }
+  },
+  "smartrecruiters": {
+    "id": "sr-1",
+    "name": "Software Engineer",
+    "experienceLevel": { "label": "Entry level" },
+    "location": { "city": "Austin", "region": "TX", "country": "US" },
+    "company": { "name": "Acme" },
+    "jobAd": {
+      "sections": {
+        "jobDescription": { "text": "<p>Build Python &amp; SQL tools.</p>" },
+        "qualifications": { "text": "<p>Learn React.</p>" }
+      }
+    }
+  },
+  "recruitee": {
+    "id": 201,
+    "slug": "junior-engineer",
+    "title": "Junior Engineer",
+    "status": "published",
+    "location": "Remote",
+    "country_code": "US",
+    "remote": true,
+    "description": "<p>Build Python &amp; SQL tools.</p>",
+    "requirements": "<p>Learn React.</p>",
+    "salary": { "min": 75000, "max": 95000, "period": "year" }
+  },
+  "personio": "<position><id>301</id><name>Engineering Intern</name><office>Remote, USA</office><subcompany>Acme</subcompany><jobDescriptions><jobDescription><name>Work</name><value><![CDATA[<p>Build Python &amp; SQL tools.</p>]]></value></jobDescription></jobDescriptions></position>",
+  "adzuna": {
+    "id": 401,
+    "title": "<b>Junior Engineer</b>",
+    "redirect_url": "https://example.test/apply/401",
+    "company": { "display_name": " Acme " },
+    "location": { "display_name": "Remote, USA" },
+    "description": "<p>Build Python &amp; SQL tools.</p>",
+    "salary_min": 80000,
+    "salary_max": 100000
+  },
+  "arbeitnow": {
+    "slug": "junior-engineer-501",
+    "title": "Junior Engineer",
+    "url": "https://example.test/jobs/501",
+    "company_name": "Acme",
+    "location": "Remote",
+    "remote": true,
+    "description": "<p>Build Python &amp; SQL tools.</p>",
+    "tags": ["React"]
+  }
+}

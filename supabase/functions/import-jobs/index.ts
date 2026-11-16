@@ -36,6 +36,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildJobText, generateEmbedding, toPgVector } from '../_shared/embeddings.ts';
 import { ATS_COMPANIES, ATS_SOURCES, type AtsSource } from '../_shared/ats-companies.ts';
 import {
+  type AtsOptions,
   dedupeJobs,
   fetchAdzuna,
   fetchArbeitnow,
@@ -52,13 +53,13 @@ import {
   type JobSource,
 } from '../_shared/job-sources.ts';
 
-const ATS_FETCHERS: Record<AtsSource, (company: string) => Promise<ImportedJob[]>> = {
-  greenhouse: (c) => fetchGreenhouse(c),
-  lever: (c) => fetchLever(c),
-  ashby: (c) => fetchAshby(c),
-  smartrecruiters: (c) => fetchSmartRecruiters(c),
-  recruitee: (c) => fetchRecruitee(c),
-  personio: (c) => fetchPersonio(c),
+const ATS_FETCHERS: Record<AtsSource, (company: string, opts: AtsOptions) => Promise<ImportedJob[]>> = {
+  greenhouse: fetchGreenhouse,
+  lever: fetchLever,
+  ashby: fetchAshby,
+  smartrecruiters: fetchSmartRecruiters,
+  recruitee: fetchRecruitee,
+  personio: fetchPersonio,
 };
 // Boards fetched at once per source: keeps runs short without hammering any API.
 const ATS_CONCURRENCY = 4;
@@ -139,6 +140,7 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
+  const startedAt = new Date().toISOString();
   const report: Record<string, unknown> = { sources };
   const errors: string[] = [];
   if (body.sources?.includes('adzuna') && !sources.includes('adzuna')) {
@@ -175,19 +177,30 @@ Deno.serve(async (req) => {
   // Employer boards, a few at a time. A board that fails is reported and
   // skipped; its existing listings are left alone (see step 3).
   const okBoards = new Map<JobSource, string[]>();
+  // external_ids each board listed as live, including postings past a fetcher's
+  // detail cap. Only boards that loaded completely contribute (see step 2b).
+  const listed = new Map<JobSource, string[]>();
+  const warnings: string[] = [];
   for (const source of sources.filter((s): s is AtsSource => (ATS_SOURCES as string[]).includes(s))) {
     const companies = body.companies?.[source] ?? batchOf(ATS_COMPANIES[source], body.batch);
     const done: string[] = [];
+    const ids: string[] = [];
     // Lever pages are ~1 MB each and parallel downloads get cut off: one at a time.
     await mapLimit(companies, source === 'lever' ? 1 : ATS_CONCURRENCY, async (company) => {
+      const boardIds: string[] = [];
       try {
-        fetched.push(...(await ATS_FETCHERS[source](company)));
+        fetched.push(...(await ATS_FETCHERS[source](company, {
+          onListed: (id) => boardIds.push(id),
+          onWarning: (msg) => warnings.push(msg),
+        })));
         done.push(company);
+        ids.push(...boardIds);
       } catch (e) {
         errors.push(`${source} ${company}: ${(e as Error).message}`);
       }
     });
     okBoards.set(source, done);
+    listed.set(source, ids);
   }
   if (sources.includes('usajobs')) {
     try {
@@ -247,6 +260,27 @@ Deno.serve(async (req) => {
       saved: rows.filter((r) => r.source === s).length,
     }]),
   );
+
+  // 2b. Postings a board still lists but that weren't fetched in full (detail
+  //     caps keep runs under the CPU limit) are still live: refresh their
+  //     last_seen_at so step 3 doesn't retire them.
+  let keptAlive = 0;
+  for (const [source, ids] of listed) {
+    const upsertedIds = new Set(rows.filter((r) => r.source === source).map((r) => r.external_id));
+    const rest = [...new Set(ids)].filter((id) => !upsertedIds.has(id));
+    for (let i = 0; i < rest.length; i += 200) {
+      const { data, error } = await admin
+        .from('jobs')
+        .update({ last_seen_at: now })
+        .eq('source', source)
+        .eq('is_active', true)
+        .in('external_id', rest.slice(i, i + 200))
+        .select('id');
+      if (error) errors.push(`keep-alive ${source}: ${error.message}`);
+      else keptAlive += data.length;
+    }
+  }
+  report.kept_alive = keptAlive;
 
   // 3. Retire listings a feed stopped returning. Only for feeds that loaded,
   //    so an API outage doesn't wipe the feed.
@@ -321,7 +355,32 @@ Deno.serve(async (req) => {
     .is('embedding', null);
   report.unembedded = unembedded ?? null;
 
-  return json({ ok: errors.length === 0, ...report, errors });
+  // 5. Durable run log, so failures are visible after the HTTP response is gone
+  //    (pg_cron never reads it). See public.import_health for a summary.
+  //    The per-minute embed_only cron is logged only when it fails.
+  const ok = errors.length === 0;
+  const { error: logError } = body.embed_only && ok ? { error: null } : await admin.from('import_runs').insert({
+    started_at: startedAt,
+    finished_at: new Date().toISOString(),
+    request: body,
+    sources,
+    ok,
+    fetched: (report.fetched as number | undefined) ?? 0,
+    upserted: (report.upserted as number | undefined) ?? 0,
+    duplicates_skipped: (report.duplicates_skipped as number | undefined) ?? 0,
+    kept_alive: keptAlive,
+    deactivated,
+    embedded,
+    unembedded: unembedded ?? null,
+    boards_ok: Object.fromEntries([...okBoards].map(([s, b]) => [s, b.length])),
+    by_source: report.by_source ?? null,
+    errors,
+    warnings,
+  });
+  if (logError) console.error(`import_runs insert failed: ${logError.message}`);
+
+  // 207: the run finished but something failed. Shows up in net._http_response.
+  return json({ ok, ...report, errors, warnings }, ok ? 200 : 207);
 });
 
 async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {

@@ -56,38 +56,46 @@ Deno.serve(async (req) => {
     if (body.target === 'profile') {
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('full_name, target_title, bio, skills, resume_text')
+        .select('full_name, target_title, bio, skills, resume_text, updated_at')
         .eq('id', user.id)
         .single();
       if (error) return json({ error: error.message }, 404);
 
       const embedding = await generateProfileEmbedding(profile);
-      const { error: updateError } = await supabase
+      // Only write if the profile is unchanged since we read it. If it was edited
+      // meanwhile, this vector describes old text; the edit's own embed call
+      // (or the stale-embedding trigger) takes care of the new version.
+      const { data: written, error: updateError } = await supabase
         .from('profiles')
         .update({ embedding: toPgVector(embedding) })
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .eq('updated_at', profile.updated_at)
+        .select('id');
       if (updateError) return json({ error: updateError.message }, 500);
 
-      return json({ ok: true, dimensions: embedding.length });
+      return json({ ok: true, dimensions: embedding.length, stale: written.length === 0 });
     }
 
     if (body.target === 'job' && body.id) {
       const { data: job, error } = await supabase
         .from('jobs')
-        .select('title, company_name, description, required_skills, location, is_remote')
+        .select('title, company_name, description, required_skills, location, is_remote, updated_at')
         .eq('id', body.id)
         .eq('recruiter_id', user.id)
         .single();
       if (error) return json({ error: 'Job not found' }, 404);
 
       const embedding = await generateEmbedding(buildJobText(job));
-      const { error: updateError } = await supabase
+      // Same guard as above: skip the write if the job changed while embedding.
+      const { data: written, error: updateError } = await supabase
         .from('jobs')
         .update({ embedding: toPgVector(embedding) })
-        .eq('id', body.id);
+        .eq('id', body.id)
+        .eq('updated_at', job.updated_at)
+        .select('id');
       if (updateError) return json({ error: updateError.message }, 500);
 
-      return json({ ok: true, dimensions: embedding.length });
+      return json({ ok: true, dimensions: embedding.length, stale: written.length === 0 });
     }
 
     if (body.target === 'backfill') {
