@@ -313,12 +313,12 @@ const MAX_RETRY_WAIT_MS = 5000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function retryDelayMs(attempt: number, retryAfter: string | null): number {
-  const seconds = Number(retryAfter);
+  const seconds = retryAfter == null ? NaN : Number(retryAfter);
   const hinted = Number.isFinite(seconds) && seconds >= 0
     ? seconds * 1000
     : retryAfter ? Date.parse(retryAfter) - Date.now() : NaN;
   const backoff = 500 * 2 ** attempt + Math.random() * 250;
-  return Math.min(Number.isFinite(hinted) && hinted > 0 ? hinted : backoff, MAX_RETRY_WAIT_MS);
+  return Math.min(Number.isFinite(hinted) && hinted >= 0 ? hinted : backoff, MAX_RETRY_WAIT_MS);
 }
 
 export async function fetchText(url: string, init: JobRequestInit = {}): Promise<string> {

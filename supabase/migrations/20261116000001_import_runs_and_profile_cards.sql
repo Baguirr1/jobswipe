@@ -30,6 +30,8 @@ create index import_runs_started_at_idx on public.import_runs (started_at desc);
 -- Operational data: service role only (it bypasses RLS). No client policies.
 alter table public.import_runs enable row level security;
 revoke all on public.import_runs from anon, authenticated;
+-- The identity sequence gets Supabase's default grants separately.
+revoke all on sequence public.import_runs_id_seq from anon, authenticated;
 
 -- One row per source: when it last ran, last succeeded, and how the latest run
 -- went. Query from the SQL editor: select * from public.import_health;

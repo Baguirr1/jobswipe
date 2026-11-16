@@ -44,3 +44,6 @@ yarn-error.*
 # ML training data (exported from Supabase; keep out of git)
 ml/data/
 ml/__pycache__/
+
+# Deno (Edge Function tests)
+deno.lock
