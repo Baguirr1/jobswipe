@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
-import { Bookmark, BriefcaseBusiness, Flame, MessageCircle, User } from 'lucide-react-native';
+import { Bookmark, BriefcaseBusiness, ChartColumn, Layers, MessageCircle, User } from 'lucide-react-native';
 
+import { C } from '@/lib/theme';
 import { useAuth } from '@/providers/AuthProvider';
 
 export default function TabsLayout() {
@@ -10,9 +11,14 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#6C47FF',
-        tabBarInactiveTintColor: '#9CA3AF',
-        headerTitleStyle: { fontWeight: '800' },
+        tabBarActiveTintColor: C.accent,
+        tabBarInactiveTintColor: C.ink3,
+        tabBarStyle: { backgroundColor: C.surface, borderTopColor: C.line },
+        tabBarLabelStyle: { fontWeight: '600' },
+        headerStyle: { backgroundColor: C.canvas },
+        headerShadowVisible: false,
+        headerTitleStyle: { fontWeight: '800', color: C.ink },
+        sceneStyle: { backgroundColor: C.canvas },
       }}
     >
       <Tabs.Protected guard={!isRecruiter}>
@@ -21,7 +27,15 @@ export default function TabsLayout() {
           options={{
             title: 'Discover',
             headerShown: false,
-            tabBarIcon: ({ color, size }) => <Flame color={color} size={size} />,
+            tabBarIcon: ({ color, size }) => <Layers color={color} size={size} />,
+          }}
+        />
+        <Tabs.Screen
+          name="market"
+          options={{
+            title: 'Insights',
+            headerShown: false,
+            tabBarIcon: ({ color, size }) => <ChartColumn color={color} size={size} />,
           }}
         />
         <Tabs.Screen

@@ -8,6 +8,41 @@ export function formatSalaryRange(min: number | null, max: number | null): strin
   return 'Salary not listed';
 }
 
+/** "$84k" style. */
+export function money(n: number): string {
+  return compactUsd(Math.round(n));
+}
+
+/** "$1,250" style, for monthly figures. */
+export function moneyExact(n: number): string {
+  const sign = n < 0 ? '−' : '';
+  return `${sign}$${Math.abs(Math.round(n)).toLocaleString('en-US')}`;
+}
+
+/** "3 days ago" style, from an ISO date. */
+export function postedAgo(iso: string): string {
+  const h = (Date.now() - new Date(iso).getTime()) / 36e5;
+  if (h < 1) return 'just now';
+  if (h < 24) return `${Math.floor(h)}h ago`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return 'yesterday';
+  if (d < 7) return `${d} days ago`;
+  if (d < 14) return '1 week ago';
+  if (d < 30) return `${Math.floor(d / 7)} weeks ago`;
+  return 'over a month ago';
+}
+
+export function ageDays(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 864e5));
+}
+
+export function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const s = [...values].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
+}
+
 export function initials(name: string | null | undefined): string {
   if (!name) return '?';
   return name

@@ -62,7 +62,7 @@ export default function MatchesScreen() {
       contentContainerStyle={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}
       data={matches}
       keyExtractor={(m) => m.id}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor="#6C47FF" colors={['#6C47FF']} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor="#0B6E66" colors={['#0B6E66']} />}
       ItemSeparatorComponent={() => <View className="h-3" />}
       ListHeaderComponent={<>
         <SectionHero eyebrow="A CONNECTION WORTH MAKING" title="Good connections" subtitle={isRecruiter ? "Meet the people who could be your next great hire." : "You caught their eye. Start a conversation about your next move."} />
@@ -82,7 +82,7 @@ export default function MatchesScreen() {
       ListEmptyComponent={
         refreshing || error ? undefined : (
           <View className="flex-1 items-center justify-center px-8">
-            <View className="h-24 w-24 items-center justify-center rounded-3xl bg-brand-light"><HeartHandshake size={44} color="#6C47FF" /></View>
+            <View className="h-24 w-24 items-center justify-center rounded-3xl bg-brand-light"><HeartHandshake size={44} color="#0B6E66" /></View>
             <Text className="mt-4 text-center text-lg font-semibold text-gray-800">No matches yet</Text>
             <Text className="mt-1 text-center text-gray-500">
               {isRecruiter
@@ -100,7 +100,7 @@ export default function MatchesScreen() {
             onPress={() => router.push({ pathname: '/chat/[matchId]', params: { matchId: item.id } })}
             accessibilityRole="button"
             accessibilityLabel={`Open conversation about ${item.job.title}`}
-            className="flex-row items-center rounded-3xl border border-purple-100 bg-white p-4 active:opacity-80"
+            className="flex-row items-center rounded-3xl border border-line bg-white p-4 active:opacity-80"
           >
             {isRecruiter ? (
               <Avatar uri={other.avatar_url} name={other.full_name} size={52} />
@@ -118,7 +118,7 @@ export default function MatchesScreen() {
             </View>
             <View className="ml-3 items-end gap-2">
               <Text className="text-xs text-gray-500">{timeAgo(item.created_at)}</Text>
-              <View className="h-9 w-9 items-center justify-center rounded-full bg-brand-light"><MessageCircle size={17} color="#6C47FF" /></View>
+              <View className="h-9 w-9 items-center justify-center rounded-full bg-brand-light"><MessageCircle size={17} color="#0B6E66" /></View>
             </View>
           </Pressable>
         );

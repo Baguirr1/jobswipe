@@ -42,7 +42,7 @@ export default function ReviewApplicantsScreen() {
 
       <View className="flex-1 px-4 pt-4">
         {queue.loading && queue.items.length === 0 ? (
-          <ActivityIndicator className="mt-20" size="large" color="#6C47FF" />
+          <ActivityIndicator className="mt-20" size="large" color="#0B6E66" />
         ) : (
           <SwipeDeck
             ref={deck}
@@ -71,14 +71,14 @@ export default function ReviewApplicantsScreen() {
             accessibilityLabel="Reject"
             className="h-16 w-16 items-center justify-center rounded-full bg-white shadow-md"
           >
-            <X size={32} color="#EF4444" strokeWidth={3} />
+            <X size={32} color="#C23B4E" strokeWidth={3} />
           </Pressable>
           <Pressable
             onPress={() => deck.current?.swipe('right')}
             accessibilityLabel="Match"
             className="h-16 w-16 items-center justify-center rounded-full bg-white shadow-md"
           >
-            <Heart size={30} color="#22C55E" fill="#22C55E" />
+            <Heart size={30} color="#12865A" fill="#12865A" />
           </Pressable>
         </View>
       )}

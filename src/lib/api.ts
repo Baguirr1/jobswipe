@@ -58,6 +58,10 @@ export async function getRecommendedJobs(
       p_remote_only: filters?.remoteOnly ?? false,
       p_min_salary: filters?.minSalary ?? null,
       p_location: filters?.location.trim() || null,
+      p_posted_days: filters?.postedWithinDays ?? null,
+      p_skill_match: filters?.skillsOnly ?? false,
+      // 'value' needs the city cost table, so it's sorted on the device.
+      p_sort: filters?.sort && filters.sort !== 'value' ? filters.sort : 'match',
     }),
   );
 }

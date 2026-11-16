@@ -5,8 +5,8 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } 
 import { getJob, getJobInsights } from '@/lib/api';
 import type { Job, JobInsights } from '@/lib/types';
 
-const BAR = '#6C47FF'; // single series: one hue, values labeled in text ink
-const TRACK = '#EDE9FE';
+const BAR = '#0B6E66'; // single series: one hue, values labeled in text ink
+const TRACK = '#D6ECE8';
 
 export default function JobInsightsScreen() {
   const { jobId } = useLocalSearchParams<{ jobId: string }>();

@@ -25,7 +25,7 @@ export function MatchModal({
       >
         <Animated.View entering={ZoomIn.springify().damping(12)} className="items-center">
           <View className="h-28 w-28 items-center justify-center rounded-full bg-white">
-            <Heart size={56} color="#6C47FF" fill="#6C47FF" />
+            <Heart size={56} color="#0B6E66" fill="#0B6E66" />
           </View>
           <Text className="mt-8 text-5xl font-black italic text-white">It’s a Match!</Text>
           <Text className="mt-3 text-center text-lg text-white/90">{title}</Text>

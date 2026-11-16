@@ -58,14 +58,14 @@ export default function SignIn() {
               <View className="mb-5 flex-row">
                 <RoleOption
                   label="Job seeker"
-                  icon={<UserSearch size={22} color={role === 'candidate' ? '#fff' : '#6C47FF'} />}
+                  icon={<UserSearch size={22} color={role === 'candidate' ? '#fff' : '#0B6E66'} />}
                   selected={role === 'candidate'}
                   onPress={() => setRole('candidate')}
                 />
                 <View className="w-3" />
                 <RoleOption
                   label="Recruiter"
-                  icon={<Briefcase size={22} color={role === 'recruiter' ? '#fff' : '#6C47FF'} />}
+                  icon={<Briefcase size={22} color={role === 'recruiter' ? '#fff' : '#0B6E66'} />}
                   selected={role === 'recruiter'}
                   onPress={() => setRole('recruiter')}
                 />

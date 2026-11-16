@@ -130,7 +130,7 @@ export default function ChatScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {loading ? (
-          <ActivityIndicator className="mt-10" color="#6C47FF" />
+          <ActivityIndicator className="mt-10" color="#0B6E66" />
         ) : loadError ? (
           <View className="flex-1 items-center justify-center px-6">
             <Text className="text-center text-lg font-semibold text-gray-800">

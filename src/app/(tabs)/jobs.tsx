@@ -57,7 +57,7 @@ export default function RecruiterJobsScreen() {
         ListEmptyComponent={
           refreshing ? undefined : (
             <View className="flex-1 items-center justify-center px-8">
-              <Briefcase size={56} color="#C4B5FD" />
+              <Briefcase size={56} color="#9CCBC4" />
               <Text className="mt-4 text-lg font-semibold text-gray-800">No job listings yet</Text>
               <Text className="mt-1 text-center text-gray-500">
                 Post your first role and it’ll start appearing in candidates’ feeds.
@@ -83,7 +83,7 @@ export default function RecruiterJobsScreen() {
                 <Switch
                   value={item.is_active}
                   onValueChange={(v) => toggleActive(item, v)}
-                  trackColor={{ true: '#6C47FF' }}
+                  trackColor={{ true: '#0B6E66' }}
                   accessibilityLabel={item.is_active ? 'Deactivate listing' : 'Activate listing'}
                 />
               </View>
@@ -109,12 +109,12 @@ export default function RecruiterJobsScreen() {
                   className="flex-1 flex-row items-center justify-between rounded-xl bg-brand-light px-4 py-2.5"
                 >
                   <View className="flex-row items-center">
-                    <Users size={16} color="#6C47FF" />
+                    <Users size={16} color="#0B6E66" />
                     <Text className="ml-1.5 text-sm font-semibold text-brand">
                       Review applicants ({count})
                     </Text>
                   </View>
-                  <ChevronRight size={16} color="#6C47FF" />
+                  <ChevronRight size={16} color="#0B6E66" />
                 </Pressable>
               </View>
             </View>

@@ -23,11 +23,16 @@ A "Tinder for jobs" mobile app. Candidates swipe on jobs ranked by AI similarity
    - The **"92% match"** badge shows how close the job is to your profile. The back of the card explains it: skills you have, skills to add, and whether the pay reaches your target.
    - Use the **filter** button for remote-only, a minimum salary or a location.
    - If you run out of jobs, tap **Refresh** to check for new listings.
+   - Tap the **map** button (or look right, on a wide screen) to see **where the jobs are**: pins are sized by job count and colored by median salary. Tap a city to see only its jobs.
+   - Every card shows the **cost of living** where the job is: a cost index (US average = 100), what the pay "feels like" in an average US city, and roughly how much is left each month after taxes, rent and basics. Flip the card for the full breakdown.
+   - **Filters** cover date posted, minimum salary, remote only, "only jobs that use my skills", location, and the order of the deck: best match, newest, highest pay, or **best pay for the cost of living**.
+   - On the web: ← / → to pass or apply, **U** to undo, **F** for filters.
 4. **Matches.** When a recruiter also says yes to you, you get an *It's a Match!* popup. The job then shows up in the **Matches** tab.
 
    **Real job listings** come from public job boards and employers' own careers pages (the card says where, e.g. *Jobs by Adzuna* or *From the company's careers page*). Many are internships and entry-level roles. No recruiter on those is using JobSwipe, so swiping right **saves** the job. You'll find it in the **Saved** tab, where **Apply** opens the listing on the original site and **Mark applied** keeps track of where you've applied.
-5. **Chat.** Open a match to message the recruiter in real time.
-6. **Profile.** On the **Profile** tab, tap **Edit profile** to change your skills or resume (your matches are re-scored when you save), or tap **Sign out**.
+5. **Insights.** The **Insights** tab sums up your 100 best-matching unswiped jobs: average match, median salary before and after cost of living, a job map, pay vs. cost of living by city, the match-score distribution, salary vs. match, the skills you're most often missing, and your top 5 matches.
+6. **Chat.** Open a match to message the recruiter in real time.
+7. **Profile.** On the **Profile** tab, tap **Edit profile** to change your skills or resume (your matches are re-scored when you save), or tap **Sign out**.
 
 ### As a recruiter
 
@@ -75,7 +80,7 @@ Recruiter yes ──► rpc swipe_candidate┘ ───────────
    npx supabase functions deploy parse-resume   # PDF / Word resume uploads
    ```
 4. Turn off **Authentication → Sign In / Providers → Email → Confirm email**. Supabase's built-in email sender only delivers to members of your Supabase organization, so other people can't confirm their sign-ups while this is on.
-5. If you pasted the first migration by hand, apply the rest of `supabase/migrations/` the same way, in filename order (imported jobs, the gte-small score scale, profile privacy, filters / saved jobs / undo / insights). `npx supabase db push` applies them all.
+5. If you pasted the first migration by hand, apply the rest of `supabase/migrations/` the same way, in filename order (imported jobs, the gte-small score scale, profile privacy, filters / saved jobs / undo / insights, feed sort and extra filters). `npx supabase db push` applies them all.
 6. (Optional) Add 15 demo jobs: paste `supabase/seed.sql` into **SQL Editor → Run**. You should see `demo_jobs = 15`. Their embeddings are generated automatically the first time a job seeker opens the Discover tab.
 
 ### Real job listings (optional)
@@ -196,6 +201,7 @@ src/
 
 ## Notes and limits
 
+- Cost-of-living figures (`src/lib/cities.ts`) are rounded 2025 estimates for ~60 US metros, for comparing offers rather than budgeting. Jobs in other places (and remote jobs) fall back to US-average costs and don't appear on the map.
 - Resume upload reads PDF and `.docx` through the `parse-resume` Edge Function. Scanned (image-only) PDFs have no text to extract, so those users need to paste their resume.
 - Roles are fixed at signup (a trigger enforces this). Use a second account to test the other side.
 - Swipe and match writes go only through `security definer` RPCs. RLS blocks direct inserts into `swipes`, `recruiter_swipes` and `matches`.

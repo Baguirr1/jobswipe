@@ -15,7 +15,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView className="flex-1 bg-gray-50" contentContainerClassName="p-5 pb-10" contentContainerStyle={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
-      <View className="mb-5 overflow-hidden rounded-3xl border border-purple-100 bg-white">
+      <View className="mb-5 overflow-hidden rounded-3xl border border-line bg-white">
         <View className="h-28 overflow-hidden bg-brand-light">
           <View className="absolute inset-0 opacity-60"><SwipeBackground /></View>
         </View>
@@ -25,7 +25,7 @@ export default function ProfileScreen() {
               <Avatar uri={profile.avatar_url} name={profile.full_name} size={88} />
             </View>
             <Pressable onPress={() => router.push('/profile-edit')} accessibilityRole="button" accessibilityLabel="Edit profile" className="min-h-12 flex-row items-center rounded-2xl bg-brand-light px-4 py-3">
-              <Pencil size={15} color="#4B2BD9" /><Text className="ml-2 text-sm font-semibold text-brand-dark">Edit profile</Text>
+              <Pencil size={15} color="#08524C" /><Text className="ml-2 text-sm font-semibold text-brand-dark">Edit profile</Text>
             </Pressable>
           </View>
           <Text accessibilityRole="header" className="mt-4 text-2xl font-extrabold tracking-tight text-gray-900">{profile.full_name || 'Your profile'}</Text>
@@ -36,15 +36,15 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <ProfileSection title="About" icon={<UserRound size={18} color="#6C47FF" />}>
+      <ProfileSection title="About" icon={<UserRound size={18} color="#0B6E66" />}>
         <Text className="text-base leading-6 text-gray-700">{profile.bio || (isCandidate ? 'Tell recruiters a little about yourself and what you’d like to do next.' : 'Introduce yourself and the people you’re looking to hire.')}</Text>
       </ProfileSection>
 
       {isCandidate ? <>
-        <ProfileSection title="Skills" icon={<Sparkles size={18} color="#6C47FF" />}>
+        <ProfileSection title="Skills" icon={<Sparkles size={18} color="#0B6E66" />}>
           {profile.skills.length ? <View className="flex-row flex-wrap">{profile.skills.map((skill) => <Tag key={skill} label={skill} highlighted />)}</View> : <Text className="text-sm leading-5 text-gray-600">Add your skills to help find roles that fit you.</Text>}
         </ProfileSection>
-        <ProfileSection title="Job preferences" icon={<Banknote size={18} color="#6C47FF" />}>
+        <ProfileSection title="Job preferences" icon={<Banknote size={18} color="#0B6E66" />}>
           <Text className="text-xs font-semibold uppercase tracking-wider text-gray-500">Target role</Text>
           <Text className="mb-5 mt-1 text-base font-semibold text-gray-900">{profile.target_title || 'Add your preferred role'}</Text>
           <Text className="text-xs font-semibold uppercase tracking-wider text-gray-500">Desired salary</Text>
@@ -58,7 +58,7 @@ export default function ProfileScreen() {
 
 function ProfileSection({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
-    <View className="mb-4 rounded-3xl border border-purple-100 bg-white p-5">
+    <View className="mb-4 rounded-3xl border border-line bg-white p-5">
       <View className="mb-4 flex-row items-center">
         <View className="mr-3 h-9 w-9 items-center justify-center rounded-xl bg-brand-light">{icon}</View>
         <Text accessibilityRole="header" className="text-base font-bold text-gray-900">{title}</Text>

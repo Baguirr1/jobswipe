@@ -1,6 +1,7 @@
 import { ActivityIndicator, Image, Pressable, Text, TextInput, View, type TextInputProps } from 'react-native';
 
 import { initials } from '@/lib/format';
+import { logoColor } from '@/lib/theme';
 
 export function Button({
   title,
@@ -32,7 +33,7 @@ export function Button({
       className={`${base} ${styles} ${disabled ? 'opacity-50' : ''} ${className}`}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? '#fff' : '#6C47FF'} />
+        <ActivityIndicator color={variant === 'primary' ? '#fff' : '#0B6E66'} />
       ) : (
         <Text className={`text-base font-semibold ${text}`}>{title}</Text>
       )}
@@ -77,12 +78,12 @@ export function Avatar({
 }
 
 export function CompanyLogo({ uri, name, size = 56 }: { uri?: string | null; name: string; size?: number }) {
-  const style = { width: size, height: size, borderRadius: 14 };
+  const style = { width: size, height: size, borderRadius: Math.round(size * 0.27) };
   if (uri) return <Image source={{ uri }} style={style} resizeMode="cover" />;
   return (
-    <View style={style} className="items-center justify-center bg-gray-900">
-      <Text style={{ fontSize: size * 0.4 }} className="font-bold text-white">
-        {name.charAt(0).toUpperCase()}
+    <View style={[style, { backgroundColor: logoColor(name) }]} className="items-center justify-center">
+      <Text style={{ fontSize: size * 0.34 }} className="font-extrabold text-white">
+        {initials(name.replace(/[^A-Za-z\s]/g, ' ')) || name.charAt(0).toUpperCase()}
       </Text>
     </View>
   );
@@ -91,9 +92,9 @@ export function CompanyLogo({ uri, name, size = 56 }: { uri?: string | null; nam
 export function Tag({ label, highlighted }: { label: string; highlighted?: boolean }) {
   return (
     <View
-      className={`mb-2 mr-2 rounded-full px-3 py-1.5 ${highlighted ? 'bg-brand-light' : 'bg-gray-100'}`}
+      className={`mb-2 mr-2 rounded-full px-3 py-1.5 ${highlighted ? 'bg-like-soft' : 'bg-white border border-line'}`}
     >
-      <Text className={`text-xs font-medium ${highlighted ? 'text-brand' : 'text-gray-700'}`}>
+      <Text className={`text-xs font-medium ${highlighted ? 'text-like' : 'text-ink-2'}`}>
         {label}
       </Text>
     </View>
@@ -102,7 +103,7 @@ export function Tag({ label, highlighted }: { label: string; highlighted?: boole
 
 export function MatchBadge({ score }: { score: number | null }) {
   if (score == null) return null;
-  const tone = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-amber-500' : 'bg-gray-500';
+  const tone = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-amber-500' : 'bg-canvas0';
   return (
     <View className={`rounded-full px-3 py-1 ${tone}`}>
       <Text className="text-xs font-bold text-white">{Math.round(score)}% Match</Text>
@@ -111,5 +112,5 @@ export function MatchBadge({ score }: { score: number | null }) {
 }
 
 export function Screen({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <View className={`flex-1 bg-gray-50 ${className}`}>{children}</View>;
+  return <View className={`flex-1 bg-canvas ${className}`}>{children}</View>;
 }

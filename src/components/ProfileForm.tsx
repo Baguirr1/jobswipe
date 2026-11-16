@@ -86,10 +86,10 @@ export function ResumeField({ draft }: { draft: ProfileDraft }) {
         className="mb-1.5 min-h-14 flex-row items-center justify-center rounded-2xl border-2 border-dashed border-brand/40 bg-brand-light px-4 py-3 active:opacity-80"
       >
         {draft.uploading ? (
-          <ActivityIndicator color="#6C47FF" />
+          <ActivityIndicator color="#0B6E66" />
         ) : (
           <>
-            <FileUp size={18} color="#6C47FF" />
+            <FileUp size={18} color="#0B6E66" />
             <Text className="ml-2 text-base font-semibold text-brand">
               {draft.resume ? 'Replace resume' : 'Upload resume'}
             </Text>
@@ -113,7 +113,7 @@ export function ResumeField({ draft }: { draft: ProfileDraft }) {
           accessibilityRole="button"
           className="mb-3 min-h-11 flex-row items-center"
         >
-          <Sparkles size={16} color="#6C47FF" />
+          <Sparkles size={16} color="#0B6E66" />
           <Text className="ml-2 flex-1 text-sm font-semibold text-brand">Fill in my profile from this resume</Text>
         </Pressable>
       ) : null)}
@@ -121,7 +121,7 @@ export function ResumeField({ draft }: { draft: ProfileDraft }) {
         <Text className="mb-3 text-sm text-green-700">{draft.appliedNote}</Text>
       ) : null}
       <View className="mb-6 flex-row items-start rounded-xl bg-brand-light p-3">
-        <Sparkles size={16} color="#6C47FF" />
+        <Sparkles size={16} color="#0B6E66" />
         <Text className="ml-2 flex-1 text-xs text-brand">
           We compare your title, skills, bio and resume with each job’s description to show you
           the best fits first.
@@ -139,7 +139,7 @@ function ResumeSuggestionsCard({ draft, suggestions }: { draft: ProfileDraft; su
   return (
     <View className="mb-4 rounded-2xl bg-brand-light p-4">
       <View className="mb-2 flex-row items-center">
-        <Sparkles size={18} color="#6C47FF" />
+        <Sparkles size={18} color="#0B6E66" />
         <Text className="ml-2 text-base font-semibold text-brand">From your resume</Text>
       </View>
       {suggestions.title ? (

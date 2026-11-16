@@ -59,12 +59,23 @@ export interface SavedJob {
   >;
 }
 
+/**
+ * Order of the Discover deck. 'value' (best pay for the cost of living) is
+ * applied on the device to the best-matching jobs; the rest are server-side.
+ */
+export type JobSort = 'match' | 'newest' | 'salary' | 'value';
+
 /** Discover filters, applied server-side. */
 export interface JobFilters {
   remoteOnly: boolean;
   /** Hides jobs without a listed salary when set. */
   minSalary: number | null;
   location: string;
+  /** Only jobs posted in the last N days. */
+  postedWithinDays: number | null;
+  /** Only jobs that ask for at least one of my skills. */
+  skillsOnly: boolean;
+  sort: JobSort;
 }
 
 /** Aggregates returned by get_job_insights(). */

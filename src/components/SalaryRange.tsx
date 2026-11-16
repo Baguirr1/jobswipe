@@ -29,9 +29,9 @@ export function SalaryRange({
         step={STEP}
         value={min}
         onValueChange={(v) => onChange(v, Math.max(v, max))}
-        minimumTrackTintColor="#6C47FF"
+        minimumTrackTintColor="#0B6E66"
         maximumTrackTintColor="#E5E7EB"
-        thumbTintColor="#6C47FF"
+        thumbTintColor="#0B6E66"
         accessibilityLabel="Minimum salary"
       />
       <Text className="mt-2 text-xs font-medium text-gray-500">Maximum</Text>
@@ -41,9 +41,9 @@ export function SalaryRange({
         step={STEP}
         value={max}
         onValueChange={(v) => onChange(Math.min(v, min), v)}
-        minimumTrackTintColor="#6C47FF"
+        minimumTrackTintColor="#0B6E66"
         maximumTrackTintColor="#E5E7EB"
-        thumbTintColor="#6C47FF"
+        thumbTintColor="#0B6E66"
         accessibilityLabel="Maximum salary"
       />
     </View>

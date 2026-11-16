@@ -1,16 +1,44 @@
 import { X } from 'lucide-react-native';
 import { useState } from 'react';
-import { Modal, Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/ui';
-import type { JobFilters } from '@/lib/types';
+import { C } from '@/lib/theme';
+import type { JobFilters, JobSort } from '@/lib/types';
 
-export const NO_FILTERS: JobFilters = { remoteOnly: false, minSalary: null, location: '' };
+export const NO_FILTERS: JobFilters = {
+  remoteOnly: false,
+  minSalary: null,
+  location: '',
+  postedWithinDays: null,
+  skillsOnly: false,
+  sort: 'match',
+};
 
 const SALARY_STEPS = [null, 50_000, 75_000, 100_000, 125_000, 150_000] as const;
+const POSTED_STEPS: [number | null, string][] = [
+  [null, 'Any time'],
+  [1, 'Past 24 hours'],
+  [3, 'Past 3 days'],
+  [7, 'Past week'],
+  [30, 'Past month'],
+];
+export const SORTS: [JobSort, string][] = [
+  ['match', 'Best match'],
+  ['newest', 'Newest first'],
+  ['salary', 'Highest pay'],
+  ['value', 'Best pay for cost of living'],
+];
 
+/** Filters that narrow the deck (sort order isn't one). */
 export function activeFilterCount(f: JobFilters) {
-  return Number(f.remoteOnly) + Number(f.minSalary != null) + Number(!!f.location.trim());
+  return (
+    Number(f.remoteOnly) +
+    Number(f.minSalary != null) +
+    Number(!!f.location.trim()) +
+    Number(f.postedWithinDays != null) +
+    Number(f.skillsOnly)
+  );
 }
 
 /** Short labels for the chips above the deck. */
@@ -19,6 +47,11 @@ export function filterChips(f: JobFilters): string[] {
   if (f.remoteOnly) chips.push('Remote');
   if (f.minSalary != null) chips.push(`$${f.minSalary / 1000}k+`);
   if (f.location.trim()) chips.push(f.location.trim());
+  if (f.postedWithinDays != null) {
+    chips.push(POSTED_STEPS.find(([d]) => d === f.postedWithinDays)?.[1] ?? `${f.postedWithinDays}d`);
+  }
+  if (f.skillsOnly) chips.push('Uses my skills');
+  if (f.sort !== 'match') chips.push(SORTS.find(([s]) => s === f.sort)![1]);
   return chips;
 }
 
@@ -42,70 +75,143 @@ export function FilterSheet({
     setWasVisible(visible);
     if (visible) setDraft(value);
   }
+  const set = <K extends keyof JobFilters>(k: K, v: JobFilters[K]) => setDraft((d) => ({ ...d, [k]: v }));
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityLabel="Close filters" />
-      <View className="rounded-t-3xl bg-white px-6 pb-10 pt-5">
-        <View className="mb-5 flex-row items-center justify-between">
-          <Text className="text-xl font-extrabold text-gray-900">Filter jobs</Text>
+      <View className="max-h-[88%] rounded-t-3xl bg-white" style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
+        <View className="flex-row items-center justify-between px-6 pb-3 pt-5">
+          <Text className="text-xl font-extrabold tracking-tight text-ink">Filters</Text>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close filters">
-            <X size={22} color="#6B7280" />
+            <X size={22} color={C.ink3} />
           </Pressable>
         </View>
 
-        <View className="mb-5 flex-row items-center justify-between">
-          <Text className="text-base text-gray-800">Remote only</Text>
-          <Switch
-            value={draft.remoteOnly}
-            onValueChange={(remoteOnly) => setDraft((d) => ({ ...d, remoteOnly }))}
-            trackColor={{ true: '#6C47FF' }}
-            accessibilityLabel="Remote only"
-          />
-        </View>
+        <ScrollView contentContainerClassName="px-6 pb-4">
+          <Group label="Order cards by">
+            {SORTS.map(([s, label]) => (
+              <Chip key={s} label={label} selected={draft.sort === s} onPress={() => set('sort', s)} />
+            ))}
+          </Group>
+          {draft.sort === 'value' ? (
+            <Hint>
+              Ranks your best matches by what the pay is worth after the local cost of living.
+              Jobs without a salary go last.
+            </Hint>
+          ) : null}
 
-        <Text className="mb-2 text-sm font-medium text-gray-700">Minimum salary</Text>
-        <View className="mb-1 flex-row flex-wrap">
-          {SALARY_STEPS.map((step) => {
-            const selected = draft.minSalary === step;
-            return (
-              <Pressable
+          <Group label="Date posted">
+            {POSTED_STEPS.map(([d, label]) => (
+              <Chip
+                key={label}
+                label={label}
+                selected={draft.postedWithinDays === d}
+                onPress={() => set('postedWithinDays', d)}
+              />
+            ))}
+          </Group>
+
+          <Group label="Minimum salary">
+            {SALARY_STEPS.map((step) => (
+              <Chip
                 key={step ?? 'any'}
-                onPress={() => setDraft((d) => ({ ...d, minSalary: step }))}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-                className={`mb-2 mr-2 rounded-full px-4 py-2 ${selected ? 'bg-brand' : 'bg-gray-100'}`}
-              >
-                <Text className={`text-sm font-semibold ${selected ? 'text-white' : 'text-gray-700'}`}>
-                  {step == null ? 'Any' : `$${step / 1000}k+`}
-                </Text>
-              </Pressable>
-            );
-          })}
+                label={step == null ? 'Any' : `$${step / 1000}k+`}
+                selected={draft.minSalary === step}
+                onPress={() => set('minSalary', step)}
+              />
+            ))}
+          </Group>
+          <Hint>A minimum hides jobs that don’t list a salary.</Hint>
+
+          <ToggleRow
+            label="Remote only"
+            value={draft.remoteOnly}
+            onChange={(v) => set('remoteOnly', v)}
+          />
+          <ToggleRow
+            label="Only jobs that use my skills"
+            hint="At least one required skill is on your profile."
+            value={draft.skillsOnly}
+            onChange={(v) => set('skillsOnly', v)}
+          />
+
+          <Text className="mb-1.5 mt-4 text-[13px] font-semibold text-ink-2">Location</Text>
+          <TextInput
+            value={draft.location}
+            onChangeText={(location) => set('location', location)}
+            placeholder="City, state or country"
+            placeholderTextColor={C.ink3}
+            accessibilityLabel="Location"
+            autoCorrect={false}
+            className="h-12 rounded-xl border border-line bg-white px-4 text-base text-ink"
+          />
+          <Hint>Tip: tap a pin on the map to filter by city.</Hint>
+        </ScrollView>
+
+        <View className="border-t border-line px-6 pb-8 pt-3">
+          <Button title="Show jobs" onPress={() => onApply(draft)} />
+          <Button title="Clear filters" variant="ghost" onPress={() => onApply(NO_FILTERS)} className="mt-1" />
         </View>
-        <Text className="mb-5 text-xs text-gray-400">
-          A minimum hides jobs that don’t list a salary.
-        </Text>
-
-        <Text className="mb-1.5 text-sm font-medium text-gray-700">Location</Text>
-        <TextInput
-          value={draft.location}
-          onChangeText={(location) => setDraft((d) => ({ ...d, location }))}
-          placeholder="City, state or country"
-          placeholderTextColor="#9CA3AF"
-          accessibilityLabel="Location"
-          autoCorrect={false}
-          className="mb-6 h-12 rounded-xl border border-gray-200 bg-white px-4 text-base text-gray-900"
-        />
-
-        <Button title="Show jobs" onPress={() => onApply(draft)} />
-        <Button
-          title="Clear filters"
-          variant="ghost"
-          onPress={() => onApply(NO_FILTERS)}
-          className="mt-2"
-        />
       </View>
     </Modal>
   );
+}
+
+function Group({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View className="mt-4">
+      <Text className="mb-2 text-[13px] font-semibold text-ink-2">{label}</Text>
+      <View className="flex-row flex-wrap">{children}</View>
+    </View>
+  );
+}
+
+export function Chip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      className={`mb-2 mr-2 rounded-full border px-3.5 py-1.5 ${
+        selected ? 'border-ink bg-ink' : 'border-line bg-white'
+      }`}
+    >
+      <Text className={`text-[13px] font-semibold ${selected ? 'text-white' : 'text-ink-2'}`}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function ToggleRow({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <View className="mt-4 flex-row items-center justify-between">
+      <View className="flex-1 pr-4">
+        <Text className="text-[15px] font-medium text-ink">{label}</Text>
+        {hint ? <Text className="text-xs text-ink-3">{hint}</Text> : null}
+      </View>
+      <Switch value={value} onValueChange={onChange} trackColor={{ true: C.accent }} accessibilityLabel={label} />
+    </View>
+  );
+}
+
+function Hint({ children }: { children: React.ReactNode }) {
+  return <Text className="mt-0.5 text-xs text-ink-3">{children}</Text>;
 }

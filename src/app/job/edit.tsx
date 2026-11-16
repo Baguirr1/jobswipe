@@ -105,7 +105,7 @@ export default function EditJobScreen() {
     }
   };
 
-  if (loading) return <ActivityIndicator className="mt-10" color="#6C47FF" />;
+  if (loading) return <ActivityIndicator className="mt-10" color="#0B6E66" />;
 
   // Never show an empty form for an existing job: saving it would wipe the listing.
   if (loadError) {
@@ -132,7 +132,7 @@ export default function EditJobScreen() {
         />
         <View className="mb-4 flex-row items-center justify-between rounded-xl bg-white px-4 py-3">
           <Text className="text-base text-gray-800">Remote role</Text>
-          <Switch value={form.is_remote} onValueChange={(v) => set('is_remote', v)} trackColor={{ true: '#6C47FF' }} />
+          <Switch value={form.is_remote} onValueChange={(v) => set('is_remote', v)} trackColor={{ true: '#0B6E66' }} />
         </View>
         <Field
           label="Location"
@@ -170,7 +170,7 @@ export default function EditJobScreen() {
         />
         <View className="mb-6 flex-row items-center justify-between rounded-xl bg-white px-4 py-3">
           <Text className="text-base text-gray-800">Listing active</Text>
-          <Switch value={form.is_active} onValueChange={(v) => set('is_active', v)} trackColor={{ true: '#6C47FF' }} />
+          <Switch value={form.is_active} onValueChange={(v) => set('is_active', v)} trackColor={{ true: '#0B6E66' }} />
         </View>
         <Button title={id ? 'Save changes' : 'Publish job'} onPress={save} loading={saving} />
       </ScrollView>

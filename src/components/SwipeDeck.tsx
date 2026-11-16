@@ -273,10 +273,10 @@ function DeckCard<T>({
         {isTop && (
           <>
             <Animated.View style={[styles.stamp, styles.likeStamp, likeStyle]} pointerEvents="none">
-              <Text style={[styles.stampText, { color: '#22C55E' }]}>{likeLabel}</Text>
+              <Text style={[styles.stampText, { color: '#12865A' }]}>{likeLabel}</Text>
             </Animated.View>
             <Animated.View style={[styles.stamp, styles.nopeStamp, nopeStyle]} pointerEvents="none">
-              <Text style={[styles.stampText, { color: '#EF4444' }]}>{nopeLabel}</Text>
+              <Text style={[styles.stampText, { color: '#C23B4E' }]}>{nopeLabel}</Text>
             </Animated.View>
           </>
         )}
@@ -289,20 +289,22 @@ const styles = StyleSheet.create({
   deck: { flex: 1 },
   card: {
     ...StyleSheet.absoluteFill,
-    borderRadius: 24,
+    borderRadius: 20,
     backgroundColor: '#fff',
-    shadowColor: '#302958',
-    shadowOpacity: 0.25,
+    shadowColor: '#10201D',
+    shadowOpacity: 0.18,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 12 },
     elevation: 6,
   },
   face: {
     ...StyleSheet.absoluteFill,
-    borderRadius: 24,
+    borderRadius: 20,
     overflow: 'hidden',
     backfaceVisibility: 'hidden',
     backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#D0DAD6',
   },
   stamp: {
     position: 'absolute',
@@ -311,8 +313,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 4,
+    backgroundColor: '#fff',
   },
-  likeStamp: { left: 24, borderColor: '#22C55E', transform: [{ rotate: '-15deg' }] },
-  nopeStamp: { right: 24, borderColor: '#EF4444', transform: [{ rotate: '15deg' }] },
-  stampText: { fontSize: 32, fontWeight: '900', letterSpacing: 2 },
+  likeStamp: { left: 24, borderColor: '#12865A', transform: [{ rotate: '-15deg' }] },
+  nopeStamp: { right: 24, borderColor: '#C23B4E', transform: [{ rotate: '15deg' }] },
+  stampText: { fontSize: 26, fontWeight: '800', letterSpacing: 1.5 },
 });

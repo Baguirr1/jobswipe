@@ -92,7 +92,7 @@ export default function SavedJobsScreen() {
         data={rows}
         keyExtractor={(s) => s.job.id}
         contentContainerClassName="flex-grow p-5"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor="#6C47FF" colors={['#6C47FF']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor="#0B6E66" colors={['#0B6E66']} />}
         ItemSeparatorComponent={() => <View className="h-4" />}
         ListHeaderComponent={<>
       <SectionHero eyebrow="MAKE YOUR NEXT MOVE" title="Your shortlist" subtitle="Keep the roles you love close. Apply when you’re ready." />
@@ -112,7 +112,7 @@ export default function SavedJobsScreen() {
         ListEmptyComponent={
           !loaded || error ? undefined : (
             <View className="flex-1 items-center justify-center px-8">
-              <Bookmark size={56} color="#C4B5FD" />
+              <Bookmark size={56} color="#9CCBC4" />
               <Text className="mt-4 text-center text-lg font-semibold text-gray-800">
                 {segment === 'todo' ? 'Nothing to apply to' : 'No applications yet'}
               </Text>
@@ -172,7 +172,7 @@ function SavedJobRow({
   const { job } = item;
   const where = job.is_remote ? 'Remote' : job.location;
   return (
-    <View className="rounded-3xl border border-purple-100 bg-white p-5">
+    <View className="rounded-3xl border border-line bg-white p-5">
       <Pressable
         onPress={onToggleExpand}
         accessibilityRole="button"
@@ -200,7 +200,7 @@ function SavedJobRow({
 
       <Text className="mt-4 text-lg font-bold text-gray-900">{formatSalaryRange(job.salary_min, job.salary_max)}</Text>
       {expanded ? (
-        <View className="mt-3 border-t border-purple-50 pt-3">
+        <View className="mt-3 border-t border-line pt-3">
           {job.required_skills.length ? (
             <View className="mb-1 flex-row flex-wrap">
               {job.required_skills.map((s) => (
