@@ -20,6 +20,7 @@ export const NO_FILTERS: JobFilters = {
   company: '',
   sponsorship: null,
   minSalary: null,
+  includeEstimates: false,
   location: '',
   keyword: '',
   postedWithinDays: null,
@@ -70,7 +71,7 @@ const SALARY_OPTIONS = [null, 50_000, 75_000, 100_000, 125_000, 150_000].map((va
 }));
 
 export function activeFilterCount(f: JobFilters) {
-  return f.employmentTypes.length + f.workplaceTypes.length + f.jobFunctions.length
+  return f.employmentTypes.length + f.workplaceTypes.length + f.jobFunctions.length + Number(f.includeEstimates)
     + Number(!!f.company.trim()) + Number(f.sponsorship != null)
     + Number(f.minSalary != null) + Number(!!f.location.trim())
     + Number(!!f.keyword.trim()) + Number(f.postedWithinDays != null) + Number(f.level != null)
@@ -85,6 +86,7 @@ export function filterChips(f: JobFilters): string[] {
   for (const t of f.jobFunctions) chips.push(jobFunctionLabel(t)!);
   if (f.company.trim()) chips.push(f.company.trim());
   if (f.minSalary != null) chips.push(`$${f.minSalary / 1000}k+`);
+  if (f.includeEstimates) chips.push('Incl. estimated pay');
   if (f.location.trim()) chips.push(f.location.trim());
   if (f.keyword.trim()) chips.push('"' + f.keyword.trim() + '"');
   const posted = POSTED_OPTIONS.find((o) => o.value === f.postedWithinDays);
@@ -234,7 +236,21 @@ export function FilterSheet({
           </Text>
 
           <SingleSelect title="Minimum salary" options={SALARY_OPTIONS} value={draft.minSalary} onChange={set('minSalary')} />
-          <Text className="-mt-1 mb-5 text-xs text-gray-400">A minimum hides jobs that don’t list a salary.</Text>
+          <Text className="-mt-1 mb-3 text-xs text-gray-400">
+            Hourly pay counts at 2,080 hours a year. A minimum hides jobs with no pay listed.
+          </Text>
+          <View className="mb-1 flex-row items-center justify-between">
+            <Text className="text-base text-gray-800">Include estimated pay</Text>
+            <Switch
+              value={draft.includeEstimates}
+              onValueChange={set('includeEstimates')}
+              trackColor={{ true: '#6C47FF' }}
+              accessibilityLabel="Include estimated pay"
+            />
+          </View>
+          <Text className="mb-5 text-xs text-gray-400">
+            Lets typical pay for similar roles (BLS) count toward salary filters and the pay sort.
+          </Text>
 
           <SingleSelect title="Posted within" options={POSTED_OPTIONS} value={draft.postedWithinDays} onChange={set('postedWithinDays')} />
           <SingleSelect title="Experience level" options={LEVEL_OPTIONS} value={draft.level} onChange={set('level')} />

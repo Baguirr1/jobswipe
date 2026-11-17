@@ -14,7 +14,7 @@ import { FlatList, Linking, Pressable, RefreshControl, Text, TextInput, View } f
 import { SectionHero } from '@/components/SectionHero';
 import { Button, CompanyLogo, Tag } from '@/components/ui';
 import { getSavedJobs, removeSavedJob, setSavedJobNote, setSavedJobStage } from '@/lib/api';
-import { formatSalaryRange, sourceLabel, timeAgo } from '@/lib/format';
+import { formatPay, sourceLabel, timeAgo } from '@/lib/format';
 import { showAlert } from '@/lib/notify';
 import type { ApplicationStage, SavedJob } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
@@ -251,6 +251,7 @@ function SavedJobRow({
   const [noteDraft, setNoteDraft] = useState(item.note);
   const { job } = item;
   const where = job.is_remote ? 'Remote' : job.location;
+  const pay = formatPay(job);
   const stage = stageInfo(item.stage);
 
   const status =
@@ -289,7 +290,7 @@ function SavedJobRow({
         {expanded ? <ChevronUp size={18} color="#9CA3AF" /> : <ChevronDown size={18} color="#9CA3AF" />}
       </Pressable>
 
-      <Text className="mt-4 text-lg font-bold text-gray-900">{formatSalaryRange(job.salary_min, job.salary_max)}</Text>
+      <Text className={`mt-4 text-lg ${pay.estimated ? 'font-semibold text-gray-600' : 'font-bold text-gray-900'}`}>{pay.text}</Text>
       {expanded ? (
         <View className="mt-3 border-t border-purple-50 pt-3">
           {job.required_skills.length ? (

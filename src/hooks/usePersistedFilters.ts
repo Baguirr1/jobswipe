@@ -32,6 +32,7 @@ function restoreFilters(value: unknown): JobFilters {
   if (stored.level === 'entry' || stored.level === 'senior') {
     filters.level = stored.level;
   }
+  if (typeof stored.includeEstimates === 'boolean') filters.includeEstimates = stored.includeEstimates;
   if (typeof stored.quickApplyOnly === 'boolean') filters.quickApplyOnly = stored.quickApplyOnly;
   if (typeof stored.salaryListed === 'boolean') filters.salaryListed = stored.salaryListed;
   if (typeof stored.skillsMatch === 'boolean') filters.skillsMatch = stored.skillsMatch;

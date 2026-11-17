@@ -5,7 +5,7 @@ import { FlatList, Pressable, RefreshControl, Switch, Text, View } from 'react-n
 
 import { CompanyLogo } from '@/components/ui';
 import { getApplicantCounts, getMyJobs, setJobActive } from '@/lib/api';
-import { formatSalaryRange } from '@/lib/format';
+import { formatPay } from '@/lib/format';
 import { showAlert } from '@/lib/notify';
 import type { Job } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
@@ -76,7 +76,7 @@ export default function RecruiterJobsScreen() {
                     {item.title}
                   </Text>
                   <Text className="text-sm text-gray-500" numberOfLines={1}>
-                    {formatSalaryRange(item.salary_min, item.salary_max)} ·{' '}
+                    {formatPay(item).text} ·{' '}
                     {item.is_remote ? 'Remote' : item.location ?? 'On-site'}
                   </Text>
                 </View>

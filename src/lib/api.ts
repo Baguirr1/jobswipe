@@ -61,6 +61,7 @@ export async function getRecommendedJobs(
       p_job_functions: filters?.jobFunctions.length ? filters.jobFunctions : null,
       p_company: filters?.company.trim() || null,
       p_sponsorship: filters?.sponsorship ?? null,
+      p_include_estimates: filters?.includeEstimates ?? false,
       p_min_salary: filters?.minSalary ?? null,
       p_location: filters?.location.trim() || null,
       p_keyword: filters?.keyword?.trim() || null,
@@ -93,7 +94,7 @@ export async function getSavedJobs(candidateId: string): Promise<SavedJob[]> {
     supabase
       .from('swipes')
       .select(
-        'created_at, applied_at, job:jobs!inner ( id, title, company_name, company_logo, location, is_remote, source, apply_url, description, required_skills, salary_min, salary_max )',
+        'created_at, applied_at, job:jobs!inner ( id, title, company_name, company_logo, location, is_remote, source, apply_url, description, required_skills, salary_min, salary_max, hourly_min, hourly_max, est_pay_min, est_pay_max, est_pay_period, est_pay_source )',
       )
       .eq('candidate_id', candidateId)
       .eq('direction', 'right')
@@ -145,7 +146,7 @@ export async function getMyJobs(recruiterId: string): Promise<Job[]> {
     await supabase
       .from('jobs')
       .select(
-        'id, recruiter_id, title, company_name, company_logo, description, location, is_remote, salary_min, salary_max, required_skills, is_active, created_at, source, apply_url, employment_type, workplace_type, job_function, sponsors_visa',
+        'id, recruiter_id, title, company_name, company_logo, description, location, is_remote, salary_min, salary_max, hourly_min, hourly_max, est_pay_min, est_pay_max, est_pay_period, est_pay_source, required_skills, is_active, created_at, source, apply_url, employment_type, workplace_type, job_function, sponsors_visa',
       )
       .eq('recruiter_id', recruiterId)
       .order('created_at', { ascending: false }),
@@ -157,7 +158,7 @@ export async function getJob(jobId: string): Promise<Job> {
     await supabase
       .from('jobs')
       .select(
-        'id, recruiter_id, title, company_name, company_logo, description, location, is_remote, salary_min, salary_max, required_skills, is_active, created_at, source, apply_url, employment_type, workplace_type, job_function, sponsors_visa',
+        'id, recruiter_id, title, company_name, company_logo, description, location, is_remote, salary_min, salary_max, hourly_min, hourly_max, est_pay_min, est_pay_max, est_pay_period, est_pay_source, required_skills, is_active, created_at, source, apply_url, employment_type, workplace_type, job_function, sponsors_visa',
       )
       .eq('id', jobId)
       .single(),

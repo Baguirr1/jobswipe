@@ -25,6 +25,14 @@ export interface ImportedJob {
   /** From the job board when it says; null lets the database derive it from the title. */
   employment_type: EmploymentType | null;
   workplace_type: WorkplaceType | null;
+  /** Hourly pay from the board's salary field. With no salary at all, the database reads pay from the description. */
+  hourly_min: number | null;
+  hourly_max: number | null;
+  /** Adzuna's own salary prediction (annual). Other sources leave these null and get a BLS estimate in the database. */
+  est_pay_min: number | null;
+  est_pay_max: number | null;
+  est_pay_period: 'year' | null;
+  est_pay_source: 'adzuna' | null;
 }
 
 export type EmploymentType = 'full_time' | 'part_time' | 'internship' | 'contract' | 'temporary';
@@ -100,6 +108,11 @@ export function extractSkills(text: string, max = 10): string[] {
 
 const ENTITIES: Record<string, string> = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', '#39': "'",
+  // Typographic entities job boards leave in descriptions ("$153,120&mdash;$196,750").
+  mdash: '—', ndash: '–', minus: '−', hellip: '…', bull: '•', middot: '·',
+  lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
+  copy: '©', reg: '®', trade: '™', deg: '°', times: '×', eacute: 'é', egrave: 'è',
+  aacute: 'á', iacute: 'í', oacute: 'ó', uacute: 'ú', ntilde: 'ñ', uuml: 'ü', ouml: 'ö', auml: 'ä',
 };
 
 /** Strip HTML to readable plain text with paragraph breaks. */
@@ -187,9 +200,11 @@ export function normalizeAdzuna(r: AdzunaResult): ImportedJob | null {
   const description = htmlToText(r.description ?? '');
   const location = r.location?.display_name?.trim() || null;
   const isRemote = /\bremote\b/i.test(`${title} ${location ?? ''}`);
-  // Adzuna estimates salaries when the ad has none; only keep real ones.
+  // Adzuna predicts a salary when the ad has none: keep it, but as an estimate.
   const predicted = String(r.salary_is_predicted ?? '0') === '1';
-  const [salaryMin, salaryMax] = predicted ? [null, null] : normalizeSalary(r.salary_min, r.salary_max);
+  const [payMin, payMax] = normalizeSalary(r.salary_min, r.salary_max);
+  const [salaryMin, salaryMax] = predicted ? [null, null] : [payMin, payMax];
+  const estimated = predicted && (payMin != null || payMax != null);
 
   return {
     source: 'adzuna',
@@ -205,6 +220,12 @@ export function normalizeAdzuna(r: AdzunaResult): ImportedJob | null {
     required_skills: extractSkills(`${title}\n${description}`),
     employment_type: null,
     workplace_type: null,
+    hourly_min: null,
+    hourly_max: null,
+    est_pay_min: estimated ? payMin ?? payMax : null,
+    est_pay_max: estimated ? payMax ?? payMin : null,
+    est_pay_period: estimated ? 'year' : null,
+    est_pay_source: estimated ? 'adzuna' : null,
   };
 }
 
@@ -262,6 +283,7 @@ export function normalizeArbeitnow(r: ArbeitnowResult): ImportedJob | null {
     required_skills: extractSkills(`${title}\n${(r.tags ?? []).join(', ')}\n${description}`),
     employment_type: null,
     workplace_type: 'remote',
+    hourly_min: null, hourly_max: null, est_pay_min: null, est_pay_max: null, est_pay_period: null, est_pay_source: null,
   };
 }
 
@@ -422,11 +444,30 @@ function makeJob(source: JobSource, company: string, id: string | number | undef
     is_remote: remote, salary_min: salary[0], salary_max: salary[1],
     required_skills: extractSkills(`${title}\n${description}`),
     employment_type: null, workplace_type: null,
+    hourly_min: null, hourly_max: null, est_pay_min: null, est_pay_max: null, est_pay_period: null, est_pay_source: null,
   };
 }
 
 function add(jobs: ImportedJob[], job: ImportedJob | null): void { if (job) jobs.push(job); }
 function annual(interval?: string): boolean { return /^(?:annual(?:ly)?|year(?:ly)?|per[- ]year(?:-salary)?|1 year)$/i.test(interval?.trim() ?? ''); }
+function hourly(interval?: string): boolean { return /^(?:hour(?:ly)?|per[- ]hour(?:-wage)?|1 hour)$/i.test(interval?.trim() ?? ''); }
+
+/** Hourly rates from a board's salary field; drops implausible values and inverted ranges. */
+export function normalizeHourly(min: unknown, max: unknown): [number | null, number | null] {
+  const clean = (v: unknown) => {
+    const n = typeof v === 'string' ? parseFloat(v) : typeof v === 'number' ? v : NaN;
+    return Number.isFinite(n) && n >= 7 && n <= 300 ? Math.round(n * 100) / 100 : null;
+  };
+  let lo = clean(min);
+  let hi = clean(max);
+  if (lo != null && hi != null && lo > hi) [lo, hi] = [hi, lo];
+  return [lo, hi];
+}
+
+function withHourly(job: ImportedJob | null, [lo, hi]: [number | null, number | null]): ImportedJob | null {
+  if (job) { job.hourly_min = lo; job.hourly_max = hi; }
+  return job;
+}
 
 // ---------- Greenhouse ----------
 export interface GreenhouseResult {
@@ -485,9 +526,10 @@ export function normalizeLever(r: LeverResult, company: string, opts: AtsOptions
   if (!eligible(r.text, r.categories?.commitment ?? '', location, remote, r.country, opts)) return null;
   const description = [r.descriptionPlain, ...(r.lists ?? []).map(l => `${l.text ?? ''}\n${htmlToText(l.content ?? '')}`), r.additionalPlain].filter(Boolean).join('\n\n').slice(0, MAX_DESCRIPTION_CHARS);
   const salary = r.salaryRange;
-  return withTypes(makeJob('lever', company, r.id, r.text, r.hostedUrl, description, location, remote, r.company_name,
+  return withHourly(withTypes(makeJob('lever', company, r.id, r.text, r.hostedUrl, description, location, remote, r.company_name,
     annual(salary?.interval) ? normalizeSalary(salary?.min, salary?.max) : [null, null]),
-    toEmploymentType(r.categories?.commitment), toWorkplaceType(r.workplaceType));
+    toEmploymentType(r.categories?.commitment), toWorkplaceType(r.workplaceType)),
+    hourly(salary?.interval) ? normalizeHourly(salary?.min, salary?.max) : [null, null]);
 }
 export async function fetchLever(company: string, opts: AtsOptions = {}): Promise<ImportedJob[]> {
   const jobs: ImportedJob[] = [];
@@ -513,9 +555,11 @@ export function normalizeAshby(r: AshbyResult, company: string, opts: AtsOptions
   const remote = r.isRemote === true || /^remote$/i.test(r.workplaceType ?? '') || /remote/i.test(`${location ?? ''} ${r.title}`);
   if (!eligible(r.title, r.employmentType ?? '', location, remote, r.address?.postalAddress?.addressCountry, opts)) return null;
   const salary = r.compensation?.summaryComponents?.find(c => c.compensationType === 'Salary' && annual(c.interval));
-  return withTypes(makeJob('ashby', company, r.id, r.title, r.jobUrl, r.descriptionPlain?.slice(0, MAX_DESCRIPTION_CHARS) || htmlToText(r.descriptionHtml ?? ''), location, remote, r.company_name,
+  const wage = r.compensation?.summaryComponents?.find(c => c.compensationType === 'Salary' && hourly(c.interval));
+  return withHourly(withTypes(makeJob('ashby', company, r.id, r.title, r.jobUrl, r.descriptionPlain?.slice(0, MAX_DESCRIPTION_CHARS) || htmlToText(r.descriptionHtml ?? ''), location, remote, r.company_name,
     salary ? normalizeSalary(salary.minValue, salary.maxValue) : [null, null]),
-    toEmploymentType(r.employmentType), toWorkplaceType(r.workplaceType) ?? (r.isRemote === true ? 'remote' : null));
+    toEmploymentType(r.employmentType), toWorkplaceType(r.workplaceType) ?? (r.isRemote === true ? 'remote' : null)),
+    wage ? normalizeHourly(wage.minValue, wage.maxValue) : [null, null]);
 }
 export async function fetchAshby(company: string, opts: AtsOptions = {}): Promise<ImportedJob[]> {
   const body = await fetchJson<{ jobs?: AshbyResult[] }>(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(company)}?includeCompensation=true`, { provider: 'Ashby', company });
@@ -579,9 +623,10 @@ export function normalizeRecruitee(r: RecruiteeResult, company: string, opts: At
   const location = r.location || [r.city, r.country].filter(Boolean).join(', ') || null;
   const remote = r.remote === true || /remote/i.test(`${location ?? ''} ${r.title}`);
   if (!eligible(r.title, `${r.employment_type_code ?? ''} ${r.experience_code ?? ''}`, location, remote, r.country_code || r.country, opts)) return null;
-  return withTypes(makeJob('recruitee', company, r.id, r.title, r.careers_url || (r.slug ? `https://${company}.recruitee.com/o/${encodeURIComponent(r.slug)}` : undefined), htmlToText(`${r.description ?? ''}\n${r.requirements ?? ''}`), location, remote, r.company_name,
+  return withHourly(withTypes(makeJob('recruitee', company, r.id, r.title, r.careers_url || (r.slug ? `https://${company}.recruitee.com/o/${encodeURIComponent(r.slug)}` : undefined), htmlToText(`${r.description ?? ''}\n${r.requirements ?? ''}`), location, remote, r.company_name,
     annual(r.salary?.period) ? normalizeSalary(r.salary?.min, r.salary?.max) : [null, null]),
-    toEmploymentType(r.employment_type_code), r.hybrid === true ? 'hybrid' : r.remote === true ? 'remote' : null);
+    toEmploymentType(r.employment_type_code), r.hybrid === true ? 'hybrid' : r.remote === true ? 'remote' : null),
+    hourly(r.salary?.period) ? normalizeHourly(r.salary?.min, r.salary?.max) : [null, null]);
 }
 export async function fetchRecruitee(company: string, opts: AtsOptions = {}): Promise<ImportedJob[]> {
   const body = await fetchJson<{ offers?: RecruiteeResult[] }>(`https://${encodeURIComponent(company)}.recruitee.com/api/offers/`, { provider: 'Recruitee', company });

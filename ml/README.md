@@ -67,3 +67,21 @@ python verify.py https://<url>.modal.run   # local pipeline vs. deployed API
 Endpoints: `GET /health`, `GET /info` (metadata plus a ready-to-send example body), `POST /predict` with `{"pairs": [{...}, ...]}` (1–100 pairs).
 
 `modal_serve.py` pins scikit-learn, numpy, pandas and joblib to the versions that built the bundle, so the deployed model computes exactly the same numbers as the local one.
+
+## Pay benchmarks
+
+Jobs with no stated pay get an estimate from BLS OEWS wage data (migration
+`20261116000007_stated_and_estimated_pay.sql`). `pay_benchmarks.py` pulls it
+from the official BLS API: national 10th-90th percentile annual wages for one
+representative occupation per job function, plus each state's all-occupation
+median as a regional index (capped to 0.85-1.25 in SQL). It writes
+`data/pay_benchmarks.json` and prints the SQL rows; refresh yearly when BLS
+publishes a new May release, in a new migration.
+
+    python ml/pay_benchmarks.py --year 2025
+
+How a range is picked: internships use the hourly 10th-25th percentile (BLS
+has no intern wages), part-time/temporary the 10th-50th hourly, contract the
+25th-75th hourly; full-time uses the 50th-90th for senior titles, 10th-50th
+for entry titles, otherwise the 25th-75th. Roles classified as "other" and
+non-US locations get no estimate.

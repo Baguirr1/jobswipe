@@ -23,6 +23,8 @@ import {
   normalizeRecruitee,
   normalizeSalary,
   normalizeSmartRecruiters,
+  htmlToText,
+  normalizeHourly,
   toEmploymentType,
   toWorkplaceType,
 } from "../job-sources.ts";
@@ -598,4 +600,49 @@ offlineTest("ATS normalizers pass through the board's job type and workplace", (
   assertEquals([greenhouse?.employment_type, greenhouse?.workplace_type], [null, null]);
   // Arbeitnow only imports remote listings.
   assertEquals(normalizeArbeitnow(fixtures.arbeitnow)?.workplace_type, "remote");
+});
+
+offlineTest("Adzuna predictions become an estimate, not a salary", () => {
+  const job = normalizeAdzuna({ ...fixtures.adzuna, salary_is_predicted: "1" })!;
+  assertEquals([job.salary_min, job.salary_max], [null, null]);
+  assertEquals(
+    [job.est_pay_min, job.est_pay_max, job.est_pay_period, job.est_pay_source],
+    [80000, 100000, "year", "adzuna"],
+  );
+  const real = normalizeAdzuna(fixtures.adzuna)!;
+  assertEquals([real.est_pay_min, real.est_pay_source], [null, null]);
+});
+
+offlineTest("hourly pay from board salary fields", () => {
+  const lever = normalizeLever({
+    ...fixtures.lever,
+    salaryRange: { min: 25, max: 35, interval: "per-hour-wage" },
+  }, "acme")!;
+  assertEquals(
+    [lever.salary_min, lever.salary_max, lever.hourly_min, lever.hourly_max],
+    [null, null, 25, 35],
+  );
+  const ashby = normalizeAshby({
+    ...fixtures.ashby,
+    compensation: {
+      summaryComponents: [{ compensationType: "Salary", interval: "1 HOUR", minValue: 40.5, maxValue: 45 }],
+    },
+  }, "acme")!;
+  assertEquals([ashby.hourly_min, ashby.hourly_max], [40.5, 45]);
+  const recruitee = normalizeRecruitee({
+    ...fixtures.recruitee,
+    salary: { min: 18, max: 22, period: "hour" },
+  }, "acme")!;
+  assertEquals([recruitee.hourly_min, recruitee.hourly_max], [18, 22]);
+  // Annual-only boards are unchanged.
+  assertEquals(normalizeLever(fixtures.lever, "acme")!.hourly_min, null);
+  assertEquals(normalizeHourly(5, 1000), [null, null]);
+  assertEquals(normalizeHourly(30, 20), [20, 30]);
+});
+
+offlineTest("htmlToText decodes typographic entities", () => {
+  assertEquals(
+    htmlToText("<p>$153,120&mdash;$196,750 &ndash; we&rsquo;re hiring&hellip;</p>"),
+    "$153,120—$196,750 – we’re hiring…",
+  );
 });
