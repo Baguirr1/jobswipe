@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Button } from '@/components/ui';
+import { usePalette } from '@/providers/ThemeProvider';
 
 export function EmptyFeed({
   title = 'No more jobs right now!',
@@ -20,6 +21,7 @@ export function EmptyFeed({
   subtitle?: string;
   onRefresh?: () => void;
 }) {
+  const C = usePalette();
   const pulse = useSharedValue(0);
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export function EmptyFeed({
           className="absolute h-28 w-28 rounded-full bg-brand"
         />
         <View className="h-28 w-28 items-center justify-center rounded-full bg-brand">
-          <Briefcase size={44} color="#fff" />
+          <Briefcase size={44} color={C.onAccent} />
         </View>
       </View>
       <Text className="mt-6 text-center text-2xl font-bold text-gray-900">{title}</Text>

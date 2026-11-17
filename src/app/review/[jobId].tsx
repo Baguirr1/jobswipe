@@ -11,10 +11,12 @@ import { SwipeDeck, type SwipeDeckHandle } from '@/components/SwipeDeck';
 import { useSwipeQueue } from '@/hooks/useSwipeQueue';
 import { getCandidatesForJob, getJob, swipeCandidate } from '@/lib/api';
 import type { CandidateForJob, Job, SwipeDirection } from '@/lib/types';
+import { usePalette } from '@/providers/ThemeProvider';
 
 const getKey = (c: CandidateForJob) => c.id;
 
 export default function ReviewApplicantsScreen() {
+  const C = usePalette();
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
   const [job, setJob] = useState<Job | null>(null);
   const deck = useRef<SwipeDeckHandle>(null);
@@ -42,7 +44,7 @@ export default function ReviewApplicantsScreen() {
 
       <View className="flex-1 px-4 pt-4">
         {queue.loading && queue.items.length === 0 ? (
-          <ActivityIndicator className="mt-20" size="large" color="#0B6E66" />
+          <ActivityIndicator className="mt-20" size="large" color={C.accent} />
         ) : (
           <SwipeDeck
             ref={deck}
@@ -69,16 +71,16 @@ export default function ReviewApplicantsScreen() {
           <Pressable
             onPress={() => deck.current?.swipe('left')}
             accessibilityLabel="Reject"
-            className="h-16 w-16 items-center justify-center rounded-full bg-white shadow-md"
+            className="h-16 w-16 items-center justify-center rounded-full bg-surface shadow-md"
           >
-            <X size={32} color="#C23B4E" strokeWidth={3} />
+            <X size={32} color={C.pass} strokeWidth={3} />
           </Pressable>
           <Pressable
             onPress={() => deck.current?.swipe('right')}
             accessibilityLabel="Match"
-            className="h-16 w-16 items-center justify-center rounded-full bg-white shadow-md"
+            className="h-16 w-16 items-center justify-center rounded-full bg-surface shadow-md"
           >
-            <Heart size={30} color="#12865A" fill="#12865A" />
+            <Heart size={30} color={C.like} fill={C.like} />
           </Pressable>
         </View>
       )}

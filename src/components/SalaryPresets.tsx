@@ -62,10 +62,10 @@ function Chip({ label, selected, onPress }: { label: string; selected: boolean; 
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       className={`mb-2 mr-2 rounded-full border px-4 py-2.5 ${
-        selected ? 'border-brand bg-brand' : 'border-gray-200 bg-white'
+        selected ? 'border-brand bg-brand' : 'border-gray-200 bg-surface'
       }`}
     >
-      <Text className={`text-sm font-semibold ${selected ? 'text-white' : 'text-gray-700'}`}>{label}</Text>
+      <Text className={`text-sm font-semibold ${selected ? 'text-on-accent' : 'text-gray-700'}`}>{label}</Text>
     </Pressable>
   );
 }

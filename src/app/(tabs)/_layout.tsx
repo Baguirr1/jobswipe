@@ -1,10 +1,12 @@
 import { Tabs } from 'expo-router';
 import { Bookmark, BriefcaseBusiness, ChartColumn, Layers, MessageCircle, User } from 'lucide-react-native';
 
-import { C } from '@/lib/theme';
+
 import { useAuth } from '@/providers/AuthProvider';
+import { usePalette } from '@/providers/ThemeProvider';
 
 export default function TabsLayout() {
+  const C = usePalette();
   const { profile } = useAuth();
   const isRecruiter = profile?.role === 'recruiter';
 

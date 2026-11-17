@@ -19,14 +19,16 @@ import { JobCardBack, JobCardFront } from '@/components/JobCard';
 import { JobMap } from '@/components/JobMap';
 import { MatchModal } from '@/components/MatchModal';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/SwipeDeck';
+import { ThemeButton } from '@/components/ThemeControls';
 import { useSwipeQueue } from '@/hooks/useSwipeQueue';
 import { getRecommendedJobs, swipeJob, undoSwipe } from '@/lib/api';
 import { CITIES, cityLabel } from '@/lib/cities';
 import { payPicture } from '@/lib/cost';
 import { backfillJobEmbeddings, embedMyProfile } from '@/lib/embeddings';
-import { C } from '@/lib/theme';
+
 import type { JobFilters, RecommendedJob, SwipeDirection } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
+import { usePalette } from '@/providers/ThemeProvider';
 
 const BATCH_SIZE = 20;
 /** "Best pay for cost of living" re-ranks this many top matches per batch. */
@@ -40,6 +42,7 @@ const byValue = (a: RecommendedJob, b: RecommendedJob) =>
   (payPicture(b)?.adjusted ?? -1) - (payPicture(a)?.adjusted ?? -1);
 
 export default function DiscoverScreen() {
+  const C = usePalette();
   const { profile } = useAuth();
   const deck = useRef<SwipeDeckHandle>(null);
   const candidateId = profile?.id;
@@ -195,7 +198,7 @@ export default function DiscoverScreen() {
   const topIsImported = !!top && top.source !== 'jobswipe';
 
   const mapPanel = (
-    <View className="rounded-2xl border border-line bg-white p-4">
+    <View className="rounded-2xl border border-line bg-surface p-4">
       <View className="flex-row items-baseline justify-between">
         <Text className="text-xs font-bold uppercase tracking-widest text-ink-3">Where these jobs are</Text>
         {selectedCity ? (
@@ -341,6 +344,7 @@ export default function DiscoverScreen() {
               icon={(c) => <SlidersHorizontal size={18} color={c} />}
             />
             <HeaderButton label="Refresh recommendations" onPress={refresh} icon={(c) => <RefreshCw size={18} color={c} />} />
+            <ThemeButton />
           </View>
         </View>
 
@@ -422,16 +426,17 @@ function HeaderButton({
   icon: (color: string) => React.ReactNode;
   active?: boolean;
 }) {
+  const C = usePalette();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
       className={`h-10 w-10 items-center justify-center rounded-xl border ${
-        active ? 'border-brand bg-brand' : 'border-line bg-white'
+        active ? 'border-brand bg-brand' : 'border-line bg-surface'
       }`}
     >
-      {icon(active ? '#fff' : C.ink2)}
+      {icon(active ? C.onAccent : C.ink2)}
     </Pressable>
   );
 }
@@ -449,6 +454,7 @@ function RoundButton({
   small?: boolean;
   disabled?: boolean;
 }) {
+  const C = usePalette();
   const size = small ? 46 : 62;
   return (
     <Pressable
@@ -467,7 +473,7 @@ function RoundButton({
         shadowOffset: { width: 0, height: 6 },
         elevation: 3,
       }}
-      className={`items-center justify-center border border-line bg-white active:scale-95 ${
+      className={`items-center justify-center border border-line bg-surface active:scale-95 ${
         disabled ? 'opacity-40' : ''
       }`}
     >

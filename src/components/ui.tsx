@@ -2,6 +2,7 @@ import { ActivityIndicator, Image, Pressable, Text, TextInput, View, type TextIn
 
 import { initials } from '@/lib/format';
 import { logoColor } from '@/lib/theme';
+import { usePalette } from '@/providers/ThemeProvider';
 
 export function Button({
   title,
@@ -18,13 +19,14 @@ export function Button({
   disabled?: boolean;
   className?: string;
 }) {
+  const C = usePalette();
   const base = 'h-14 rounded-2xl items-center justify-center px-6';
   const styles = {
     primary: 'bg-brand active:bg-brand-dark',
     secondary: 'bg-brand-light active:opacity-80',
     ghost: 'bg-transparent active:opacity-60',
   }[variant];
-  const text = variant === 'primary' ? 'text-white' : 'text-brand';
+  const text = variant === 'primary' ? 'text-on-accent' : 'text-brand';
   return (
     <Pressable
       onPress={onPress}
@@ -33,7 +35,7 @@ export function Button({
       className={`${base} ${styles} ${disabled ? 'opacity-50' : ''} ${className}`}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? '#fff' : '#0B6E66'} />
+        <ActivityIndicator color={variant === 'primary' ? C.onAccent : C.accent} />
       ) : (
         <Text className={`text-base font-semibold ${text}`}>{title}</Text>
       )}
@@ -42,12 +44,13 @@ export function Button({
 }
 
 export function Field({ label, ...props }: TextInputProps & { label?: string }) {
+  const C = usePalette();
   return (
     <View className="mb-4">
       {label ? <Text className="mb-1.5 text-sm font-medium text-gray-700">{label}</Text> : null}
       <TextInput
-        placeholderTextColor="#9CA3AF"
-        className={`rounded-xl border border-gray-200 bg-white px-4 text-base text-gray-900 ${
+        placeholderTextColor={C.ink3}
+        className={`rounded-xl border border-gray-200 bg-surface px-4 text-base text-gray-900 ${
           props.multiline ? 'min-h-32 py-3' : 'h-12'
         }`}
         textAlignVertical={props.multiline ? 'top' : 'center'}
@@ -92,7 +95,7 @@ export function CompanyLogo({ uri, name, size = 56 }: { uri?: string | null; nam
 export function Tag({ label, highlighted }: { label: string; highlighted?: boolean }) {
   return (
     <View
-      className={`mb-2 mr-2 rounded-full px-3 py-1.5 ${highlighted ? 'bg-like-soft' : 'bg-white border border-line'}`}
+      className={`mb-2 mr-2 rounded-full px-3 py-1.5 ${highlighted ? 'bg-like-soft' : 'bg-surface border border-line'}`}
     >
       <Text className={`text-xs font-medium ${highlighted ? 'text-like' : 'text-ink-2'}`}>
         {label}

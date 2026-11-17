@@ -9,8 +9,10 @@ import { formatSalaryRange } from '@/lib/format';
 import { showAlert } from '@/lib/notify';
 import type { Job } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
+import { usePalette } from '@/providers/ThemeProvider';
 
 export default function RecruiterJobsScreen() {
+  const C = usePalette();
   const { profile } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applicants, setApplicants] = useState<Record<string, number>>({});
@@ -57,7 +59,7 @@ export default function RecruiterJobsScreen() {
         ListEmptyComponent={
           refreshing ? undefined : (
             <View className="flex-1 items-center justify-center px-8">
-              <Briefcase size={56} color="#9CCBC4" />
+              <Briefcase size={56} color={C.accentMuted} />
               <Text className="mt-4 text-lg font-semibold text-gray-800">No job listings yet</Text>
               <Text className="mt-1 text-center text-gray-500">
                 Post your first role and it’ll start appearing in candidates’ feeds.
@@ -68,7 +70,7 @@ export default function RecruiterJobsScreen() {
         renderItem={({ item }) => {
           const count = applicants[item.id] ?? 0;
           return (
-            <View className="rounded-2xl bg-white p-4">
+            <View className="rounded-2xl bg-surface p-4">
               <View className="flex-row items-center">
                 <CompanyLogo uri={item.company_logo} name={item.company_name} size={44} />
                 <View className="ml-3 flex-1">
@@ -83,7 +85,7 @@ export default function RecruiterJobsScreen() {
                 <Switch
                   value={item.is_active}
                   onValueChange={(v) => toggleActive(item, v)}
-                  trackColor={{ true: '#0B6E66' }}
+                  trackColor={{ true: C.accent }}
                   accessibilityLabel={item.is_active ? 'Deactivate listing' : 'Activate listing'}
                 />
               </View>
@@ -92,7 +94,7 @@ export default function RecruiterJobsScreen() {
                   onPress={() => router.push({ pathname: '/job/edit', params: { id: item.id } })}
                   className="mr-2 flex-row items-center rounded-xl bg-gray-100 px-4 py-2.5"
                 >
-                  <Pencil size={14} color="#374151" />
+                  <Pencil size={14} color={C.ink2} />
                   <Text className="ml-1.5 text-sm font-semibold text-gray-700">Edit</Text>
                 </Pressable>
                 <Pressable
@@ -101,7 +103,7 @@ export default function RecruiterJobsScreen() {
                   accessibilityLabel={`Insights for ${item.title}`}
                   className="mr-2 flex-row items-center rounded-xl bg-gray-100 px-3 py-2.5"
                 >
-                  <BarChart3 size={14} color="#374151" />
+                  <BarChart3 size={14} color={C.ink2} />
                   <Text className="ml-1.5 text-sm font-semibold text-gray-700">Insights</Text>
                 </Pressable>
                 <Pressable
@@ -109,12 +111,12 @@ export default function RecruiterJobsScreen() {
                   className="flex-1 flex-row items-center justify-between rounded-xl bg-brand-light px-4 py-2.5"
                 >
                   <View className="flex-row items-center">
-                    <Users size={16} color="#0B6E66" />
+                    <Users size={16} color={C.accent} />
                     <Text className="ml-1.5 text-sm font-semibold text-brand">
                       Review applicants ({count})
                     </Text>
                   </View>
-                  <ChevronRight size={16} color="#0B6E66" />
+                  <ChevronRight size={16} color={C.accent} />
                 </Pressable>
               </View>
             </View>
@@ -126,7 +128,7 @@ export default function RecruiterJobsScreen() {
         accessibilityLabel="Post a new job"
         className="absolute bottom-6 right-6 h-16 w-16 items-center justify-center rounded-full bg-brand shadow-lg active:bg-brand-dark"
       >
-        <Plus size={30} color="#fff" />
+        <Plus size={30} color={C.onAccent} />
       </Pressable>
     </View>
   );

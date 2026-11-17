@@ -5,6 +5,7 @@ import { ScrollView } from 'react-native-gesture-handler';
 import { Avatar, MatchBadge, Tag } from '@/components/ui';
 import { formatSalaryRange } from '@/lib/format';
 import type { CandidateForJob } from '@/lib/types';
+import { usePalette } from '@/providers/ThemeProvider';
 
 interface Props {
   candidate: CandidateForJob;
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function CandidateCardFront({ candidate, requiredSkills = [] }: Props) {
+  const C = usePalette();
   const required = new Set(requiredSkills.map((s) => s.toLowerCase()));
   return (
     <View className="flex-1 p-6">
@@ -27,7 +29,7 @@ export function CandidateCardFront({ candidate, requiredSkills = [] }: Props) {
       ) : null}
 
       <View className="mt-5 flex-row items-center rounded-2xl bg-green-50 px-4 py-3">
-        <Banknote size={20} color="#16A34A" />
+        <Banknote size={20} color={C.like} />
         <Text className="ml-2 text-base font-semibold text-green-700">
           Wants {formatSalaryRange(candidate.target_salary_min, candidate.target_salary_max)}
         </Text>
@@ -49,7 +51,7 @@ export function CandidateCardFront({ candidate, requiredSkills = [] }: Props) {
       </View>
 
       <View className="mt-auto flex-row items-center justify-center">
-        <RotateCw size={14} color="#9CA3AF" />
+        <RotateCw size={14} color={C.ink3} />
         <Text className="ml-1.5 text-xs text-gray-400">Tap to view resume</Text>
       </View>
     </View>

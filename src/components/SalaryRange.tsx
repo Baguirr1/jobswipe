@@ -2,6 +2,7 @@ import Slider from '@react-native-community/slider';
 import { Text, View } from 'react-native';
 
 import { formatSalaryRange } from '@/lib/format';
+import { usePalette } from '@/providers/ThemeProvider';
 
 const MIN = 30_000;
 const MAX = 400_000;
@@ -17,6 +18,7 @@ export function SalaryRange({
   max: number;
   onChange: (min: number, max: number) => void;
 }) {
+  const C = usePalette();
   return (
     <View>
       <Text className="mb-3 text-center text-2xl font-bold text-gray-900">
@@ -29,9 +31,9 @@ export function SalaryRange({
         step={STEP}
         value={min}
         onValueChange={(v) => onChange(v, Math.max(v, max))}
-        minimumTrackTintColor="#0B6E66"
-        maximumTrackTintColor="#E5E7EB"
-        thumbTintColor="#0B6E66"
+        minimumTrackTintColor={C.accent}
+        maximumTrackTintColor={C.surface2}
+        thumbTintColor={C.accent}
         accessibilityLabel="Minimum salary"
       />
       <Text className="mt-2 text-xs font-medium text-gray-500">Maximum</Text>
@@ -41,9 +43,9 @@ export function SalaryRange({
         step={STEP}
         value={max}
         onValueChange={(v) => onChange(Math.min(v, min), v)}
-        minimumTrackTintColor="#0B6E66"
-        maximumTrackTintColor="#E5E7EB"
-        thumbTintColor="#0B6E66"
+        minimumTrackTintColor={C.accent}
+        maximumTrackTintColor={C.surface2}
+        thumbTintColor={C.accent}
         accessibilityLabel="Maximum salary"
       />
     </View>

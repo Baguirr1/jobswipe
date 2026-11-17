@@ -10,13 +10,14 @@ import { Button, Field } from '@/components/ui';
 import { type ProfileDraft, suggestSkills, useProfileDraft } from '@/hooks/useProfileDraft';
 import type { Profile } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
+import { usePalette } from '@/providers/ThemeProvider';
 
 export default function Onboarding() {
   const { profile, signOut } = useAuth();
 
   if (!profile) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white px-6">
+      <SafeAreaView className="flex-1 items-center justify-center bg-surface px-6">
         <Text className="text-center text-base text-gray-600">
           We couldn’t load your profile. Make sure the database migration has been applied.
         </Text>
@@ -99,6 +100,7 @@ const STEPS: Step[] = [
 ];
 
 function CandidateWizard({ profile }: { profile: Profile }) {
+  const C = usePalette();
   const draft = useProfileDraft(profile);
   const [index, setIndex] = useState(0);
   const step = STEPS[index];
@@ -127,7 +129,7 @@ function CandidateWizard({ profile }: { profile: Profile }) {
                   hitSlop={12}
                   className="-ml-2 flex-row items-center"
                 >
-                  <ChevronLeft size={22} color="#374151" />
+                  <ChevronLeft size={22} color={C.ink2} />
                   <Text className="text-base font-medium text-gray-700">Back</Text>
                 </Pressable>
               ) : (

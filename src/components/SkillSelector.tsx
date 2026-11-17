@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { SKILL_OPTIONS } from '@/lib/format';
+import { usePalette } from '@/providers/ThemeProvider';
 
 export function SkillSelector({
   value,
@@ -13,6 +14,7 @@ export function SkillSelector({
   onChange: (skills: string[]) => void;
   max?: number;
 }) {
+  const C = usePalette();
   const [custom, setCustom] = useState('');
   const selected = new Set(value.map((s) => s.toLowerCase()));
   const options = [...new Set([...SKILL_OPTIONS, ...value])];
@@ -45,13 +47,13 @@ export function SkillSelector({
               accessibilityRole="checkbox"
               accessibilityState={{ checked: on }}
               className={`mb-2 mr-2 flex-row items-center rounded-full border px-3.5 py-2 ${
-                on ? 'border-brand bg-brand' : 'border-gray-200 bg-white'
+                on ? 'border-brand bg-brand' : 'border-gray-200 bg-surface'
               }`}
             >
-              <Text className={`text-sm font-medium ${on ? 'text-white' : 'text-gray-700'}`}>
+              <Text className={`text-sm font-medium ${on ? 'text-on-accent' : 'text-gray-700'}`}>
                 {skill}
               </Text>
-              {on ? <X size={14} color="#fff" style={{ marginLeft: 4 }} /> : null}
+              {on ? <X size={14} color={C.onAccent} style={{ marginLeft: 4 }} /> : null}
             </Pressable>
           );
         })}
@@ -62,16 +64,16 @@ export function SkillSelector({
           onChangeText={setCustom}
           onSubmitEditing={addCustom}
           placeholder="Add another skill"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={C.ink3}
           returnKeyType="done"
-          className="h-11 flex-1 rounded-xl border border-gray-200 bg-white px-4 text-base"
+          className="h-11 flex-1 rounded-xl border border-gray-200 bg-surface px-4 text-base"
         />
         <Pressable
           onPress={addCustom}
           accessibilityLabel="Add skill"
           className="ml-2 h-11 w-11 items-center justify-center rounded-xl bg-brand"
         >
-          <Plus size={20} color="#fff" />
+          <Plus size={20} color={C.onAccent} />
         </Pressable>
       </View>
       <Text className="mt-2 text-xs text-gray-400">

@@ -1,23 +1,34 @@
 /** @type {import('tailwindcss').Config} */
+// Colors come from CSS variables that ThemeProvider sets for the day or night
+// palette (src/lib/theme.ts), so every class below switches with the theme.
+const v = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+const grays = Object.fromEntries(
+  [50, 100, 200, 300, 400, 500, 600, 700, 800, 900].map((k) => [k, v(`gray-${k}`)]),
+);
+
 module.exports = {
   content: ['./src/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],
   // 'media' (the default) makes NativeWind's web runtime throw
-  // "Cannot manually set color scheme" on load. The app is light-only.
+  // "Cannot manually set color scheme" on load. Day / night is handled with
+  // CSS variables instead (see above), not Tailwind's dark: variant.
   darkMode: 'class',
   theme: {
     extend: {
-      // "Pinned" palette: calm green-grey canvas, deep teal accent, ink text.
-      // Keep in sync with src/lib/theme.ts (used where a raw color is needed).
       colors: {
-        brand: { DEFAULT: '#0B6E66', light: '#D6ECE8', dark: '#08524C' },
-        like: { DEFAULT: '#12865A', soft: '#DCF1E7' },
-        nope: { DEFAULT: '#C23B4E', soft: '#FBE4E8' },
-        gold: { DEFAULT: '#B7791F', soft: '#FAEFD8', ink: '#8A6B12' },
-        canvas: '#EDF1EF',
-        surface2: '#E4EAE7',
-        line: '#D0DAD6',
-        ink: { DEFAULT: '#10201D', 2: '#43524E', 3: '#72817D' },
+        brand: { DEFAULT: v('accent'), light: v('accent-soft'), dark: v('accent-dark') },
+        'on-accent': v('on-accent'),
+        like: { DEFAULT: v('like'), soft: v('like-soft') },
+        nope: { DEFAULT: v('pass'), soft: v('pass-soft') },
+        gold: { DEFAULT: v('gold'), soft: v('gold-soft'), ink: v('gold-ink') },
+        canvas: v('canvas'),
+        surface: v('surface'),
+        surface2: v('surface2'),
+        line: v('line'),
+        ink: { DEFAULT: v('ink'), 2: v('ink2'), 3: v('ink3') },
+        gray: grays,
+        red: { 50: v('red-50'), 500: v('red-500'), 700: v('red-700') },
+        green: { 50: v('green-50'), 700: v('green-700') },
       },
     },
   },

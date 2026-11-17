@@ -5,8 +5,9 @@ import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop, Text as SvgText
 import { cityLabel, resolveCity, type City } from '@/lib/cities';
 import { costLabel, salaryMid, vsUs, vsUsPhrase } from '@/lib/cost';
 import { median, money } from '@/lib/format';
-import { C, NUM, salaryColor } from '@/lib/theme';
+import { NUM, salaryColor } from '@/lib/theme';
 import { US_NATION_PATH, US_STATES_PATH, US_VIEWBOX } from '@/lib/usmap';
+import { usePalette } from '@/providers/ThemeProvider';
 
 type MapJob = {
   id: string;
@@ -72,6 +73,7 @@ export function JobMap({
   showList?: boolean;
   listLimit?: number;
 }) {
+  const C = usePalette();
   const { rows, remote, unplaced } = useMemo(() => groupByCity(jobs), [jobs]);
   const now = current ? resolveCity(current.location) : null;
   const nowRow = now ? rows.find((r) => r.city === now) : null;
@@ -87,7 +89,7 @@ export function JobMap({
         accessibilityLabel={`Map of ${rows.length} cities with jobs`}
       >
         <Path d={US_NATION_PATH} fill={C.land} />
-        <Path d={US_STATES_PATH} fill="none" stroke="#FFFFFF" strokeWidth={1.6} strokeLinejoin="round" />
+        <Path d={US_STATES_PATH} fill="none" stroke={C.mapStroke} strokeWidth={1.6} strokeLinejoin="round" />
         {/* Big pins first so small ones stay tappable on top. */}
         {[...rows]
           .sort((a, b) => b.count - a.count)
@@ -99,8 +101,8 @@ export function JobMap({
                   cx={r.city.x}
                   cy={r.city.y}
                   r={pinRadius(r.count)}
-                  fill={r.medianSalary != null ? salaryColor(r.medianSalary) : C.ink3}
-                  stroke={selected === r.label ? C.ink : '#FFFFFF'}
+                  fill={r.medianSalary != null ? salaryColor(r.medianSalary, C.ramp) : C.ink3}
+                  stroke={selected === r.label ? C.ink : C.mapStroke}
                   strokeWidth={selected === r.label ? 6 : 4}
                 />
                 {r.count > 1 ? (
@@ -137,8 +139,8 @@ export function JobMap({
                 y={now.y + 10}
                 fontSize={30}
                 fontWeight="700"
-                fill={halo ? '#FFFFFF' : C.ink}
-                stroke={halo ? '#FFFFFF' : 'none'}
+                fill={halo ? C.surface : C.ink}
+                stroke={halo ? C.surface : 'none'}
                 strokeWidth={halo ? 8 : 0}
                 strokeLinejoin="round"
                 textAnchor={now.x > 700 ? 'end' : 'start'}
@@ -170,7 +172,7 @@ export function JobMap({
                     width: 10,
                     height: 10,
                     borderRadius: 5,
-                    backgroundColor: r.medianSalary != null ? salaryColor(r.medianSalary) : C.ink3,
+                    backgroundColor: r.medianSalary != null ? salaryColor(r.medianSalary, C.ramp) : C.ink3,
                   }}
                 />
                 <Text className="ml-2 flex-1 text-[13px] text-ink" numberOfLines={1}>
@@ -212,13 +214,14 @@ export function JobMap({
 }
 
 export function SalaryLegend() {
+  const C = usePalette();
   return (
     <View className="mt-2">
       <Svg width="100%" height={8}>
         <Defs>
           <LinearGradient id="salramp" x1="0" y1="0" x2="1" y2="0">
             {[0, 0.25, 0.5, 0.75, 1].map((o) => (
-              <Stop key={o} offset={o} stopColor={salaryColor(45_000 + o * 90_000)} />
+              <Stop key={o} offset={o} stopColor={salaryColor(45_000 + o * 90_000, C.ramp)} />
             ))}
           </LinearGradient>
         </Defs>

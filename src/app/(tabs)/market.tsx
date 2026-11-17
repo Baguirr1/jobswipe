@@ -18,9 +18,10 @@ import { groupByCity, JobMap } from '@/components/JobMap';
 import { getRecommendedJobs } from '@/lib/api';
 import { costOfLiving, payPicture, vsUs } from '@/lib/cost';
 import { ageDays, median, money, moneyExact } from '@/lib/format';
-import { C, matchColor, NUM, salaryColor } from '@/lib/theme';
+import { matchColor, NUM, salaryColor } from '@/lib/theme';
 import type { RecommendedJob } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
+import { usePalette } from '@/providers/ThemeProvider';
 
 const POOL = 100;
 
@@ -29,6 +30,7 @@ const POOL = 100;
  * what they pay, and what that pay is worth after the local cost of living.
  */
 export default function InsightsScreen() {
+  const C = usePalette();
   const { profile } = useAuth();
   const userId = profile?.id;
   const [jobs, setJobs] = useState<RecommendedJob[] | null>(null);
@@ -98,6 +100,7 @@ export default function InsightsScreen() {
 }
 
 function Body({ jobs, skills, twoCol }: { jobs: RecommendedJob[]; skills: string[]; twoCol: boolean }) {
+  const C = usePalette();
   const stats = useMemo(() => summarize(jobs, skills), [jobs, skills]);
   const col = twoCol ? { width: '49%' as const } : { width: '100%' as const };
 
@@ -105,7 +108,7 @@ function Body({ jobs, skills, twoCol }: { jobs: RecommendedJob[]; skills: string
     <>
       <View className="mb-4 flex-row flex-wrap justify-between">
         {stats.kpis.map((k) => (
-          <View key={k.label} className="mb-3 rounded-2xl border border-line bg-white px-4 py-3" style={{ width: twoCol ? '32%' : '48.5%' }}>
+          <View key={k.label} className="mb-3 rounded-2xl border border-line bg-surface px-4 py-3" style={{ width: twoCol ? '32%' : '48.5%' }}>
             <Text className="text-[11px] font-bold uppercase tracking-wider text-ink-3">{k.label}</Text>
             <Text className="text-[28px] font-extrabold tracking-tight text-ink" style={NUM}>
               {k.value}
@@ -161,7 +164,7 @@ function Body({ jobs, skills, twoCol }: { jobs: RecommendedJob[]; skills: string
                 </View>
                 {pay ? (
                   <View className="flex-row items-center">
-                    <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: salaryColor(pay.mid), marginRight: 6 }} />
+                    <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: salaryColor(pay.mid, C.ramp), marginRight: 6 }} />
                     <Text className="text-xs text-ink-2" style={NUM}>{money(pay.mid)}</Text>
                   </View>
                 ) : null}
@@ -232,7 +235,7 @@ function Box({
   style?: { width: `${number}%` };
 }) {
   return (
-    <View className="mb-4 rounded-2xl border border-line bg-white p-4" style={style}>
+    <View className="mb-4 rounded-2xl border border-line bg-surface p-4" style={style}>
       <Text className="text-[15px] font-extrabold text-ink">{title}</Text>
       {sub ? <Text className="mb-3 mt-0.5 text-[12.5px] text-ink-3">{sub}</Text> : <View className="h-3" />}
       {children}
@@ -328,6 +331,7 @@ function CityTable({ jobs }: { jobs: RecommendedJob[] }) {
 const BINS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90];
 
 function Histogram({ jobs }: { jobs: RecommendedJob[] }) {
+  const C = usePalette();
   const [w, onLayout] = useWidth();
   const H = 190;
   const L = 28;
@@ -367,7 +371,7 @@ function Histogram({ jobs }: { jobs: RecommendedJob[] }) {
                   width={Math.max(1, bw - 4)}
                   height={y(0) - y(n)}
                   rx={3}
-                  fill={matchColor(BINS[i]! + 5)}
+                  fill={matchColor(BINS[i]! + 5, C)}
                 />
               ) : null}
               {n ? (
@@ -394,6 +398,7 @@ function Histogram({ jobs }: { jobs: RecommendedJob[] }) {
 }
 
 function Legend() {
+  const C = usePalette();
   return (
     <View className="mt-2 flex-row flex-wrap" style={{ gap: 14 }}>
       {[
@@ -411,6 +416,7 @@ function Legend() {
 }
 
 function Scatter({ jobs }: { jobs: RecommendedJob[] }) {
+  const C = usePalette();
   const [w, onLayout] = useWidth();
   const [picked, setPicked] = useState<string | null>(null);
   const H = 220;
@@ -454,9 +460,9 @@ function Scatter({ jobs }: { jobs: RecommendedJob[] }) {
             return (
               <G key={j.id} onPress={() => setPicked(on ? null : j.id)}>
                 {j.salary_min != null && j.salary_max != null ? (
-                  <Line x1={cx} x2={cx} y1={ys(j.salary_min)} y2={ys(j.salary_max)} stroke={matchColor(m)} strokeWidth={2} opacity={0.35} />
+                  <Line x1={cx} x2={cx} y1={ys(j.salary_min)} y2={ys(j.salary_max)} stroke={matchColor(m, C)} strokeWidth={2} opacity={0.35} />
                 ) : null}
-                <Circle cx={cx} cy={ys(p.mid)} r={on ? 7.5 : 5.5} fill={matchColor(m)} stroke={on ? C.ink : '#fff'} strokeWidth={2} />
+                <Circle cx={cx} cy={ys(p.mid)} r={on ? 7.5 : 5.5} fill={matchColor(m, C)} stroke={on ? C.ink : C.surface} strokeWidth={2} />
                 <Circle cx={cx} cy={ys(p.mid)} r={12} fill="transparent" />
               </G>
             );

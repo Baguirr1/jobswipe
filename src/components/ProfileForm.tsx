@@ -8,6 +8,7 @@ import { Button, Field } from '@/components/ui';
 import { type ProfileDraft, useProfileDraft } from '@/hooks/useProfileDraft';
 import type { ResumeSuggestions } from '@/lib/resumeExtract';
 import type { Profile } from '@/lib/types';
+import { usePalette } from '@/providers/ThemeProvider';
 
 /** Single-page profile editor (Edit profile, and recruiter onboarding). */
 export function ProfileForm({ profile, submitLabel, onSaved }: {
@@ -76,6 +77,7 @@ export function ProfileForm({ profile, submitLabel, onSaved }: {
 
 /** Upload (PDF, Word, .txt) or paste a resume; the extracted text stays editable. */
 export function ResumeField({ draft }: { draft: ProfileDraft }) {
+  const C = usePalette();
   return (
     <View>
       <Pressable
@@ -86,10 +88,10 @@ export function ResumeField({ draft }: { draft: ProfileDraft }) {
         className="mb-1.5 min-h-14 flex-row items-center justify-center rounded-2xl border-2 border-dashed border-brand/40 bg-brand-light px-4 py-3 active:opacity-80"
       >
         {draft.uploading ? (
-          <ActivityIndicator color="#0B6E66" />
+          <ActivityIndicator color={C.accent} />
         ) : (
           <>
-            <FileUp size={18} color="#0B6E66" />
+            <FileUp size={18} color={C.accent} />
             <Text className="ml-2 text-base font-semibold text-brand">
               {draft.resume ? 'Replace resume' : 'Upload resume'}
             </Text>
@@ -113,7 +115,7 @@ export function ResumeField({ draft }: { draft: ProfileDraft }) {
           accessibilityRole="button"
           className="mb-3 min-h-11 flex-row items-center"
         >
-          <Sparkles size={16} color="#0B6E66" />
+          <Sparkles size={16} color={C.accent} />
           <Text className="ml-2 flex-1 text-sm font-semibold text-brand">Fill in my profile from this resume</Text>
         </Pressable>
       ) : null)}
@@ -121,7 +123,7 @@ export function ResumeField({ draft }: { draft: ProfileDraft }) {
         <Text className="mb-3 text-sm text-green-700">{draft.appliedNote}</Text>
       ) : null}
       <View className="mb-6 flex-row items-start rounded-xl bg-brand-light p-3">
-        <Sparkles size={16} color="#0B6E66" />
+        <Sparkles size={16} color={C.accent} />
         <Text className="ml-2 flex-1 text-xs text-brand">
           We compare your title, skills, bio and resume with each job’s description to show you
           the best fits first.
@@ -132,6 +134,7 @@ export function ResumeField({ draft }: { draft: ProfileDraft }) {
 }
 
 function ResumeSuggestionsCard({ draft, suggestions }: { draft: ProfileDraft; suggestions: ResumeSuggestions }) {
+  const C = usePalette();
   const [title, setTitle] = useState(!draft.targetTitle.trim());
   const [skills, setSkills] = useState(suggestions.skills);
   const [summary, setSummary] = useState(!draft.bio.trim());
@@ -139,7 +142,7 @@ function ResumeSuggestionsCard({ draft, suggestions }: { draft: ProfileDraft; su
   return (
     <View className="mb-4 rounded-2xl bg-brand-light p-4">
       <View className="mb-2 flex-row items-center">
-        <Sparkles size={18} color="#0B6E66" />
+        <Sparkles size={18} color={C.accent} />
         <Text className="ml-2 text-base font-semibold text-brand">From your resume</Text>
       </View>
       {suggestions.title ? (
@@ -158,9 +161,9 @@ function ResumeSuggestionsCard({ draft, suggestions }: { draft: ProfileDraft; su
                   accessibilityState={{ checked }}
                   accessibilityLabel={skill}
                   onPress={() => setSkills((current) => checked ? current.filter((item) => item !== skill) : [...current, skill])}
-                  className={`mb-2 mr-2 min-h-11 justify-center rounded-full border px-3 py-2 ${checked ? 'border-brand bg-brand' : 'border-gray-200 bg-white'}`}
+                  className={`mb-2 mr-2 min-h-11 justify-center rounded-full border px-3 py-2 ${checked ? 'border-brand bg-brand' : 'border-gray-200 bg-surface'}`}
                 >
-                  <Text className={`text-sm ${checked ? 'text-white' : 'text-gray-700'}`}>{skill}</Text>
+                  <Text className={`text-sm ${checked ? 'text-on-accent' : 'text-gray-700'}`}>{skill}</Text>
                 </Pressable>
               );
             })}
@@ -180,10 +183,11 @@ function ResumeSuggestionsCard({ draft, suggestions }: { draft: ProfileDraft; su
 }
 
 function SuggestionCheckbox({ checked, onPress, label }: { checked: boolean; onPress: () => void; label: string }) {
+  const C = usePalette();
   return (
     <Pressable onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked }} accessibilityLabel={label} className="min-h-11 flex-row items-center py-2">
-      <View className={`mr-3 h-5 w-5 items-center justify-center rounded border ${checked ? 'border-brand bg-brand' : 'border-gray-300 bg-white'}`}>
-        {checked ? <Check size={14} color="#fff" /> : null}
+      <View className={`mr-3 h-5 w-5 items-center justify-center rounded border ${checked ? 'border-brand bg-brand' : 'border-gray-300 bg-surface'}`}>
+        {checked ? <Check size={14} color={C.onAccent} /> : null}
       </View>
       <Text className="flex-1 text-sm text-gray-900">{label}</Text>
     </Pressable>

@@ -3,8 +3,9 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/ui';
-import { C } from '@/lib/theme';
+
 import type { JobFilters, JobSort } from '@/lib/types';
+import { usePalette } from '@/providers/ThemeProvider';
 
 export const NO_FILTERS: JobFilters = {
   remoteOnly: false,
@@ -66,6 +67,7 @@ export function FilterSheet({
   onApply: (next: JobFilters) => void;
   onClose: () => void;
 }) {
+  const C = usePalette();
   // Edit a draft; nothing changes in the feed until "Show jobs".
   // Each time the sheet opens, start from the applied filters (discarding any
   // unapplied edits from last time). State adjusted during render, per React docs.
@@ -80,7 +82,7 @@ export function FilterSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityLabel="Close filters" />
-      <View className="max-h-[88%] rounded-t-3xl bg-white" style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
+      <View className="max-h-[88%] rounded-t-3xl bg-surface" style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
         <View className="flex-row items-center justify-between px-6 pb-3 pt-5">
           <Text className="text-xl font-extrabold tracking-tight text-ink">Filters</Text>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close filters">
@@ -144,7 +146,7 @@ export function FilterSheet({
             placeholderTextColor={C.ink3}
             accessibilityLabel="Location"
             autoCorrect={false}
-            className="h-12 rounded-xl border border-line bg-white px-4 text-base text-ink"
+            className="h-12 rounded-xl border border-line bg-surface px-4 text-base text-ink"
           />
           <Hint>Tip: tap a pin on the map to filter by city.</Hint>
         </ScrollView>
@@ -182,10 +184,10 @@ export function Chip({
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       className={`mb-2 mr-2 rounded-full border px-3.5 py-1.5 ${
-        selected ? 'border-ink bg-ink' : 'border-line bg-white'
+        selected ? 'border-ink bg-ink' : 'border-line bg-surface'
       }`}
     >
-      <Text className={`text-[13px] font-semibold ${selected ? 'text-white' : 'text-ink-2'}`}>{label}</Text>
+      <Text className={`text-[13px] font-semibold ${selected ? 'text-canvas' : 'text-ink-2'}`}>{label}</Text>
     </Pressable>
   );
 }
@@ -201,6 +203,7 @@ function ToggleRow({
   value: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const C = usePalette();
   return (
     <View className="mt-4 flex-row items-center justify-between">
       <View className="flex-1 pr-4">

@@ -8,29 +8,36 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui';
-import { C } from '@/lib/theme';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
+import { ThemeProvider, usePalette, useTheme } from '@/providers/ThemeProvider';
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <StatusBar style="dark" />
-          <RootNavigator />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ThemedStatusBar />
+            <RootNavigator />
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
 
+function ThemedStatusBar() {
+  return <StatusBar style={useTheme().scheme === 'dark' ? 'light' : 'dark'} />;
+}
+
 function RootNavigator() {
+  const C = usePalette();
   const { session, profile, profileError, loading, refreshProfile, signOut } = useAuth();
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator size="large" color="#0B6E66" />
+      <View className="flex-1 items-center justify-center bg-canvas">
+        <ActivityIndicator size="large" color={C.accent} />
       </View>
     );
   }
@@ -39,7 +46,7 @@ function RootNavigator() {
   // offer a retry instead of dropping a returning user into onboarding.
   if (session && !profile && profileError) {
     return (
-      <View className="flex-1 items-center justify-center bg-white px-6">
+      <View className="flex-1 items-center justify-center bg-canvas px-6">
         <Text className="text-center text-lg font-semibold text-gray-800">
           Couldn’t load your profile
         </Text>
@@ -58,6 +65,7 @@ function RootNavigator() {
       screenOptions={{
         headerShown: false,
         headerStyle: { backgroundColor: C.canvas },
+        contentStyle: { backgroundColor: C.canvas },
         headerShadowVisible: false,
         headerTitleStyle: { fontWeight: '800', color: C.ink },
         headerTintColor: C.ink,
@@ -96,6 +104,7 @@ function RootNavigator() {
  * from a link, it goes to `fallback` instead.
  */
 function BackButton({ fallback = '/', label = 'Back' }: { fallback?: Href; label?: string }) {
+  const C = usePalette();
   return (
     <Pressable
       onPress={() => (router.canGoBack() ? router.back() : router.replace(fallback))}

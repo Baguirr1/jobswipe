@@ -7,8 +7,10 @@ import { Button, Field } from '@/components/ui';
 import { showAlert } from '@/lib/notify';
 import { supabase } from '@/lib/supabase';
 import type { UserRole } from '@/lib/types';
+import { usePalette } from '@/providers/ThemeProvider';
 
 export default function SignIn() {
+  const C = usePalette();
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
   const [role, setRole] = useState<UserRole>('candidate');
   const [fullName, setFullName] = useState('');
@@ -46,7 +48,7 @@ export default function SignIn() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView className="flex-1 bg-surface">
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerClassName="flex-grow justify-center px-6 py-10" keyboardShouldPersistTaps="handled">
           <Text className="text-5xl font-black text-brand">JobSwipe</Text>
@@ -58,14 +60,14 @@ export default function SignIn() {
               <View className="mb-5 flex-row">
                 <RoleOption
                   label="Job seeker"
-                  icon={<UserSearch size={22} color={role === 'candidate' ? '#fff' : '#0B6E66'} />}
+                  icon={<UserSearch size={22} color={role === 'candidate' ? C.onAccent : C.accent} />}
                   selected={role === 'candidate'}
                   onPress={() => setRole('candidate')}
                 />
                 <View className="w-3" />
                 <RoleOption
                   label="Recruiter"
-                  icon={<Briefcase size={22} color={role === 'recruiter' ? '#fff' : '#0B6E66'} />}
+                  icon={<Briefcase size={22} color={role === 'recruiter' ? C.onAccent : C.accent} />}
                   selected={role === 'recruiter'}
                   onPress={() => setRole('recruiter')}
                 />
@@ -120,11 +122,11 @@ function RoleOption({
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       className={`flex-1 items-center rounded-2xl border-2 py-4 ${
-        selected ? 'border-brand bg-brand' : 'border-brand-light bg-white'
+        selected ? 'border-brand bg-brand' : 'border-brand-light bg-surface'
       }`}
     >
       {icon}
-      <Text className={`mt-1.5 font-semibold ${selected ? 'text-white' : 'text-brand'}`}>{label}</Text>
+      <Text className={`mt-1.5 font-semibold ${selected ? 'text-on-accent' : 'text-brand'}`}>{label}</Text>
     </Pressable>
   );
 }

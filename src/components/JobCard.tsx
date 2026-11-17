@@ -7,8 +7,9 @@ import { CompanyLogo, Tag } from '@/components/ui';
 import { EST_TAX_RATE, payPicture, vsUs, vsUsPhrase, type PayPicture } from '@/lib/cost';
 import { ageDays, formatSalaryRange, money, moneyExact, postedAgo, sourceLabel } from '@/lib/format';
 import { explainMatch } from '@/lib/matchReasons';
-import { C, matchColor, NUM, salaryColor } from '@/lib/theme';
+import { matchColor, NUM, salaryColor } from '@/lib/theme';
 import type { Profile, RecommendedJob } from '@/lib/types';
+import { usePalette } from '@/providers/ThemeProvider';
 
 interface Props {
   job: RecommendedJob;
@@ -18,12 +19,13 @@ interface Props {
 
 /** Front: a "ticket" with the essentials, pay, and what the pay is worth locally. */
 export function JobCardFront({ job, me }: Props) {
+  const C = usePalette();
   const reasons = explainMatch(job, me);
   const pay = payPicture(job);
   const isNew = ageDays(job.created_at) <= 3;
   const imported = job.source !== 'jobswipe';
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-surface">
       <TicketHead job={job} />
       <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 18, gap: 14 }} showsVerticalScrollIndicator={false}>
         <View className="flex-row flex-wrap" style={{ gap: 6 }}>
@@ -93,7 +95,7 @@ export function JobCardBack({ job, me }: Props) {
   const reasons = explainMatch(job, me);
   const pay = payPicture(job);
   return (
-    <View className="flex-1 bg-white p-5">
+    <View className="flex-1 bg-surface p-5">
       <View className="flex-row items-center">
         <CompanyLogo uri={job.company_logo} name={job.company_name} size={40} />
         <View className="ml-3 flex-1">
@@ -120,6 +122,7 @@ export function JobCardBack({ job, me }: Props) {
 }
 
 function TicketHead({ job }: { job: RecommendedJob }) {
+  const C = usePalette();
   return (
     <View>
       <View className="flex-row items-start px-5 pb-4 pt-5" style={{ gap: 14 }}>
@@ -143,24 +146,15 @@ function TicketHead({ job }: { job: RecommendedJob }) {
       </View>
       {/* Perforation with punched notches, like a ticket stub. */}
       <View style={{ height: 0, borderTopWidth: 2, borderStyle: 'dashed', borderColor: C.line }} />
-      <View style={[notch, { left: -11 }]} />
-      <View style={[notch, { right: -11 }]} />
+      <View className="absolute h-5 w-5 rounded-full border border-line bg-canvas" style={{ bottom: -10, left: -11 }} />
+      <View className="absolute h-5 w-5 rounded-full border border-line bg-canvas" style={{ bottom: -10, right: -11 }} />
     </View>
   );
 }
 
-const notch = {
-  position: 'absolute' as const,
-  bottom: -10,
-  width: 20,
-  height: 20,
-  borderRadius: 10,
-  backgroundColor: C.canvas,
-  borderWidth: 1,
-  borderColor: C.line,
-};
 
 export function MatchRing({ score, size = 58 }: { score: number | null; size?: number }) {
+  const C = usePalette();
   const r = size / 2 - 5;
   const circ = 2 * Math.PI * r;
   const pct = score == null ? 0 : Math.round(score);
@@ -178,7 +172,7 @@ export function MatchRing({ score, size = 58 }: { score: number | null; size?: n
             cy={size / 2}
             r={r}
             fill="none"
-            stroke={matchColor(pct)}
+            stroke={matchColor(pct, C)}
             strokeWidth={6}
             strokeLinecap="round"
             strokeDasharray={`${(circ * pct) / 100} ${circ}`}
@@ -200,12 +194,13 @@ const METER_MAX = 200_000;
 const meterPos = (v: number) => Math.min(100, Math.max(0, ((v - METER_MIN) / (METER_MAX - METER_MIN)) * 100));
 
 function SalaryBlock({ job, pay }: { job: RecommendedJob; pay: PayPicture | null }) {
+  const C = usePalette();
   if (!pay) {
     return <Text className="text-lg font-semibold text-ink-3">Salary not listed</Text>;
   }
   const lo = job.salary_min ?? pay.mid;
   const hi = job.salary_max ?? pay.mid;
-  const col = salaryColor(pay.mid);
+  const col = salaryColor(pay.mid, C.ramp);
   return (
     <View>
       <View className="flex-row flex-wrap items-center" style={{ gap: 8 }}>
@@ -326,6 +321,7 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub: 
 }
 
 function Pill({ label, tone = 'plain', dot }: { label: string; tone?: 'plain' | 'accent' | 'like' | 'gold' | 'muted'; dot?: boolean }) {
+  const C = usePalette();
   const cls = {
     plain: ['bg-surface2', 'text-ink-2', C.ink2],
     accent: ['bg-brand-light', 'text-brand', C.accent],

@@ -4,11 +4,11 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } 
 
 import { getJob, getJobInsights } from '@/lib/api';
 import type { Job, JobInsights } from '@/lib/types';
+import { usePalette } from '@/providers/ThemeProvider';
 
-const BAR = '#0B6E66'; // single series: one hue, values labeled in text ink
-const TRACK = '#D6ECE8';
 
 export default function JobInsightsScreen() {
+  const C = usePalette();
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
   const [job, setJob] = useState<Job | null>(null);
   const [data, setData] = useState<JobInsights | null>(null);
@@ -55,7 +55,7 @@ export default function JobInsightsScreen() {
       ) : null}
 
       {!data ? (
-        error ? null : <ActivityIndicator className="mt-10" color={BAR} />
+        error ? null : <ActivityIndicator className="mt-10" color={C.accent} />
       ) : (
         <InsightsBody data={data} />
       )}
@@ -84,7 +84,7 @@ function InsightsBody({ data }: { data: JobInsights }) {
       </View>
 
       <SectionTitle>Applicant fit</SectionTitle>
-      <View className="mb-6 rounded-2xl bg-white p-4">
+      <View className="mb-6 rounded-2xl bg-surface p-4">
         <Text className="text-3xl font-extrabold text-gray-900">
           {data.avg_match == null ? '—' : `${data.avg_match}%`}
         </Text>
@@ -96,7 +96,7 @@ function InsightsBody({ data }: { data: JobInsights }) {
       </View>
 
       <SectionTitle>Your required skills</SectionTitle>
-      <View className="mb-6 rounded-2xl bg-white p-4">
+      <View className="mb-6 rounded-2xl bg-surface p-4">
         <Text className="mb-3 text-sm text-gray-500">How many applicants list each skill you asked for.</Text>
         <BarList
           rows={data.required_coverage.map((r) => ({ label: r.skill, count: r.count }))}
@@ -106,7 +106,7 @@ function InsightsBody({ data }: { data: JobInsights }) {
       </View>
 
       <SectionTitle>Top applicant skills</SectionTitle>
-      <View className="mb-6 rounded-2xl bg-white p-4">
+      <View className="mb-6 rounded-2xl bg-surface p-4">
         <BarList
           rows={data.top_skills.map((r) => ({ label: r.skill, count: r.count }))}
           total={data.applicants}
@@ -130,7 +130,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function StatTile({ label, value }: { label: string; value: number | string }) {
   return (
-    <View className="mb-3 w-[48.5%] rounded-2xl bg-white p-4">
+    <View className="mb-3 w-[48.5%] rounded-2xl bg-surface p-4">
       <Text className="text-2xl font-extrabold text-gray-900">{value}</Text>
       <Text className="mt-0.5 text-xs text-gray-500">{label}</Text>
     </View>
@@ -170,13 +170,13 @@ function BarList({
                 {r.count} · {pct}%
               </Text>
             </View>
-            <View style={{ height: 8, borderRadius: 4, backgroundColor: TRACK, overflow: 'hidden' }}>
+            <View className="bg-brand-light" style={{ height: 8, borderRadius: 4, overflow: 'hidden' }}>
               <View
+                className="bg-brand"
                 style={{
                   width: `${Math.max(pct, r.count ? 2 : 0)}%`,
                   height: 8,
                   borderRadius: 4,
-                  backgroundColor: BAR,
                 }}
               />
             </View>

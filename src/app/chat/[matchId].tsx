@@ -17,10 +17,12 @@ import { getMatch, getMessages, sendMessage } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import type { MatchWithDetails, Message } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
+import { usePalette } from '@/providers/ThemeProvider';
 
 type ChatMessage = Message & { status?: 'sending' | 'failed' };
 
 export default function ChatScreen() {
+  const C = usePalette();
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
   const { profile } = useAuth();
   const [match, setMatch] = useState<MatchWithDetails | null>(null);
@@ -119,7 +121,7 @@ export default function ChatScreen() {
     <SafeAreaView className="flex-1 bg-gray-50" edges={['bottom']}>
       <Stack.Screen options={{ title }} />
       {match ? (
-        <View className="border-b border-gray-100 bg-white px-4 py-2">
+        <View className="border-b border-gray-100 bg-surface px-4 py-2">
           <Text className="text-center text-xs text-gray-500">Matched on · {match.job.title}</Text>
         </View>
       ) : null}
@@ -130,7 +132,7 @@ export default function ChatScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {loading ? (
-          <ActivityIndicator className="mt-10" color="#0B6E66" />
+          <ActivityIndicator className="mt-10" color={C.accent} />
         ) : loadError ? (
           <View className="flex-1 items-center justify-center px-6">
             <Text className="text-center text-lg font-semibold text-gray-800">
@@ -142,7 +144,7 @@ export default function ChatScreen() {
               accessibilityRole="button"
               className="mt-5 rounded-2xl bg-brand px-6 py-3"
             >
-              <Text className="font-semibold text-white">Try again</Text>
+              <Text className="font-semibold text-on-accent">Try again</Text>
             </Pressable>
           </View>
         ) : (
@@ -159,12 +161,12 @@ export default function ChatScreen() {
           />
         )}
 
-        <View className="flex-row items-end border-t border-gray-100 bg-white px-3 py-2">
+        <View className="flex-row items-end border-t border-gray-100 bg-surface px-3 py-2">
           <TextInput
             value={draft}
             onChangeText={setDraft}
             placeholder="Message"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={C.ink3}
             multiline
             maxLength={4000}
             className="max-h-32 min-h-11 flex-1 rounded-3xl bg-gray-100 px-4 py-2.5 text-base"
@@ -177,7 +179,7 @@ export default function ChatScreen() {
               draft.trim() && match ? 'bg-brand' : 'bg-gray-200'
             }`}
           >
-            <SendHorizontal size={20} color="#fff" />
+            <SendHorizontal size={20} color={C.onAccent} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -190,10 +192,10 @@ function Bubble({ message, mine }: { message: ChatMessage; mine: boolean }) {
     <View className={`mb-2 max-w-[80%] ${mine ? 'self-end' : 'self-start'}`}>
       <View
         className={`rounded-2xl px-4 py-2.5 ${
-          mine ? 'rounded-br-md bg-brand' : 'rounded-bl-md bg-white'
+          mine ? 'rounded-br-md bg-brand' : 'rounded-bl-md bg-surface'
         } ${message.status === 'sending' ? 'opacity-60' : ''}`}
       >
-        <Text className={`text-base ${mine ? 'text-white' : 'text-gray-900'}`}>{message.content}</Text>
+        <Text className={`text-base ${mine ? 'text-on-accent' : 'text-gray-900'}`}>{message.content}</Text>
       </View>
       {message.status === 'failed' ? (
         <Text className="mt-1 text-right text-xs text-red-500">Failed to send</Text>

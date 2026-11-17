@@ -16,6 +16,7 @@ import { getJob, upsertJob, type JobInput } from '@/lib/api';
 import { embedJob } from '@/lib/embeddings';
 import { showAlert } from '@/lib/notify';
 import { useAuth } from '@/providers/AuthProvider';
+import { usePalette } from '@/providers/ThemeProvider';
 
 const EMPTY: JobInput = {
   title: '',
@@ -36,6 +37,7 @@ const toInt = (s: string) => {
 };
 
 export default function EditJobScreen() {
+  const C = usePalette();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { profile } = useAuth();
   const [form, setForm] = useState<JobInput>(EMPTY);
@@ -105,7 +107,7 @@ export default function EditJobScreen() {
     }
   };
 
-  if (loading) return <ActivityIndicator className="mt-10" color="#0B6E66" />;
+  if (loading) return <ActivityIndicator className="mt-10" color={C.accent} />;
 
   // Never show an empty form for an existing job: saving it would wipe the listing.
   if (loadError) {
@@ -130,9 +132,9 @@ export default function EditJobScreen() {
           autoCapitalize="none"
           keyboardType="url"
         />
-        <View className="mb-4 flex-row items-center justify-between rounded-xl bg-white px-4 py-3">
+        <View className="mb-4 flex-row items-center justify-between rounded-xl bg-surface px-4 py-3">
           <Text className="text-base text-gray-800">Remote role</Text>
-          <Switch value={form.is_remote} onValueChange={(v) => set('is_remote', v)} trackColor={{ true: '#0B6E66' }} />
+          <Switch value={form.is_remote} onValueChange={(v) => set('is_remote', v)} trackColor={{ true: C.accent }} />
         </View>
         <Field
           label="Location"
@@ -168,9 +170,9 @@ export default function EditJobScreen() {
           onChangeText={(v) => set('description', v)}
           multiline
         />
-        <View className="mb-6 flex-row items-center justify-between rounded-xl bg-white px-4 py-3">
+        <View className="mb-6 flex-row items-center justify-between rounded-xl bg-surface px-4 py-3">
           <Text className="text-base text-gray-800">Listing active</Text>
-          <Switch value={form.is_active} onValueChange={(v) => set('is_active', v)} trackColor={{ true: '#0B6E66' }} />
+          <Switch value={form.is_active} onValueChange={(v) => set('is_active', v)} trackColor={{ true: C.accent }} />
         </View>
         <Button title={id ? 'Save changes' : 'Publish job'} onPress={save} loading={saving} />
       </ScrollView>

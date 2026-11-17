@@ -27,6 +27,7 @@ import Animated, {
 import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 
 import type { SwipeDirection } from '@/lib/types';
+import { usePalette } from '@/providers/ThemeProvider';
 
 const VISIBLE_CARDS = 3;
 const SWIPE_VELOCITY = 800;
@@ -132,6 +133,8 @@ function DeckCard<T>({
   likeLabel,
   nopeLabel,
 }: DeckCardProps<T>) {
+  const C = usePalette();
+  const surface = { backgroundColor: C.surface };
   const { width } = useWindowDimensions();
   const threshold = width * 0.28;
   const offscreen = width * 1.5;
@@ -257,26 +260,26 @@ function DeckCard<T>({
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View
-        style={[styles.card, cardStyle]}
+        style={[styles.card, surface, cardStyle]}
         pointerEvents={isTop ? 'auto' : 'none'}
         accessibilityHint={isTop ? 'Swipe right to apply, left to pass, tap for details' : undefined}
       >
-        <Animated.View style={[styles.face, frontStyle]} pointerEvents={flipped ? 'none' : 'auto'}>
+        <Animated.View style={[styles.face, surface, { borderColor: C.line }, frontStyle]} pointerEvents={flipped ? 'none' : 'auto'}>
           {renderFront(item)}
         </Animated.View>
         {renderBack && (
-          <Animated.View style={[styles.face, backStyle]} pointerEvents={flipped ? 'auto' : 'none'}>
+          <Animated.View style={[styles.face, surface, { borderColor: C.line }, backStyle]} pointerEvents={flipped ? 'auto' : 'none'}>
             {renderBack(item)}
           </Animated.View>
         )}
 
         {isTop && (
           <>
-            <Animated.View style={[styles.stamp, styles.likeStamp, likeStyle]} pointerEvents="none">
-              <Text style={[styles.stampText, { color: '#12865A' }]}>{likeLabel}</Text>
+            <Animated.View style={[styles.stamp, styles.likeStamp, surface, { borderColor: C.like }, likeStyle]} pointerEvents="none">
+              <Text style={[styles.stampText, { color: C.like }]}>{likeLabel}</Text>
             </Animated.View>
-            <Animated.View style={[styles.stamp, styles.nopeStamp, nopeStyle]} pointerEvents="none">
-              <Text style={[styles.stampText, { color: '#C23B4E' }]}>{nopeLabel}</Text>
+            <Animated.View style={[styles.stamp, styles.nopeStamp, surface, { borderColor: C.pass }, nopeStyle]} pointerEvents="none">
+              <Text style={[styles.stampText, { color: C.pass }]}>{nopeLabel}</Text>
             </Animated.View>
           </>
         )}
@@ -290,8 +293,7 @@ const styles = StyleSheet.create({
   card: {
     ...StyleSheet.absoluteFill,
     borderRadius: 20,
-    backgroundColor: '#fff',
-    shadowColor: '#10201D',
+    shadowColor: '#000',
     shadowOpacity: 0.18,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 12 },
@@ -302,9 +304,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     backfaceVisibility: 'hidden',
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#D0DAD6',
   },
   stamp: {
     position: 'absolute',
@@ -313,9 +313,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 4,
-    backgroundColor: '#fff',
   },
-  likeStamp: { left: 24, borderColor: '#12865A', transform: [{ rotate: '-15deg' }] },
-  nopeStamp: { right: 24, borderColor: '#C23B4E', transform: [{ rotate: '15deg' }] },
+  likeStamp: { left: 24, transform: [{ rotate: '-15deg' }] },
+  nopeStamp: { right: 24, transform: [{ rotate: '15deg' }] },
   stampText: { fontSize: 26, fontWeight: '800', letterSpacing: 1.5 },
 });
