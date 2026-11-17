@@ -88,8 +88,9 @@ The `import-jobs` Edge Function pulls current listings from public job APIs, sco
 | [Arbeitnow](https://www.arbeitnow.com/blog/job-board-api) | None | A few dozen remote, English-language jobs |
 | Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Personio | None | Internships, co-ops, new-grad, entry-level and part-time roles (US or remote) straight from employers' public job boards. The boards pulled are listed in `supabase/functions/_shared/ats-companies.ts` |
 | [USAJOBS](https://developer.usajobs.gov/) | Free key + your registered email | Federal internships and student / recent-graduate roles |
+| [freehire.me](https://freehire.me) | None | Intern and junior US data roles (analyst, engineer, scientist, BI) gathered from ~50 job platforms |
 
-The employer boards are not part of the default run (which stays Adzuna + Arbeitnow). They're pulled in their own scheduled runs (step 4), with the bigger providers split into batches (`{"sources": ["greenhouse"], "batch": "2/3"}`) so each run stays under the Edge Function limits. For USAJOBS, run `npx supabase secrets set USAJOBS_API_KEY=xxxx USAJOBS_EMAIL=you@example.com` in your own terminal, then add a run with `{"sources": ["usajobs"]}`. A listing that already exists under another source (same company, title and location) is skipped, so nothing is duplicated.
+The employer boards are not part of the default run (which stays Adzuna + Arbeitnow). They're pulled in their own scheduled runs (step 4), with the bigger providers split into batches (`{"sources": ["greenhouse"], "batch": "2/3"}`) so each run stays under the Edge Function limits. For USAJOBS, run `npx supabase secrets set USAJOBS_API_KEY=xxxx USAJOBS_EMAIL=you@example.com` in your own terminal, then add a run with `{"sources": ["usajobs"]}`. For freehire, add a run with `{"sources": ["freehire"]}` (no key needed); change the search terms with `"keywords": ["data analyst", ...]` or a `FREEHIRE_KEYWORDS` secret. A listing that already exists under another source (same company, title and location) is skipped, so nothing is duplicated.
 
 1. Sign up at developer.adzuna.com and set your keys. Run this in your own terminal so the key stays private:
    ```bash
@@ -120,7 +121,7 @@ The employer boards are not part of the default run (which stays Adzuna + Arbeit
        body := '{}'::jsonb, timeout_milliseconds := 150000);
    $cron$);
    ```
-   Then schedule the employer-board imports and the every-minute embedding job: open `supabase/schedule-imports.sql`, replace the project URL with yours, and run it in **SQL Editor**. It creates 10 daily runs (10:10–10:55 UTC) plus `embed-jobs-every-minute`, and is safe to re-run. Check with `select jobname, schedule, active from cron.job;`.
+   Then schedule the employer-board imports and the every-minute embedding job: open `supabase/schedule-imports.sql`, replace the project URL with yours, and run it in **SQL Editor**. It creates 11 daily runs (10:05–10:55 UTC, including freehire at 10:05) plus `embed-jobs-every-minute`, and is safe to re-run. Check with `select jobname, schedule, active from cron.job;`.
 
 Remotive's public API is deliberately not used: its terms forbid showing listings behind a sign-up.
 

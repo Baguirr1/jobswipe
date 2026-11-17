@@ -94,6 +94,7 @@ const SOURCE_LABELS: Record<string, string> = {
   recruitee: 'From the company’s careers page (Recruitee)',
   personio: 'From the company’s careers page (Personio)',
   usajobs: 'via USAJOBS.gov',
+  freehire: 'via freehire.me',
 };
 
 /** Attribution for imported listings (required by the job boards' terms); null for in-app jobs. */

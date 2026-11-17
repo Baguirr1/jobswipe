@@ -6,8 +6,10 @@ import {
   assertStringIncludes,
 } from "jsr:@std/assert@1";
 import fixtures from "./fixtures/boards.json" with { type: "json" };
+import freehire from "./fixtures/freehire.json" with { type: "json" };
 import {
   dedupeJobs,
+  fetchFreehire,
   fetchGreenhouse,
   fetchSmartRecruiters,
   fetchText,
@@ -17,6 +19,7 @@ import {
   normalizeAdzuna,
   normalizeArbeitnow,
   normalizeAshby,
+  normalizeFreehire,
   normalizeGreenhouse,
   normalizeLever,
   normalizePersonio,
@@ -645,4 +648,90 @@ offlineTest("htmlToText decodes typographic entities", () => {
     htmlToText("<p>$153,120&mdash;$196,750 &ndash; we&rsquo;re hiring&hellip;</p>"),
     "$153,120—$196,750 – we’re hiring…",
   );
+});
+
+// ---------- freehire ----------
+// Fixtures are real API records (descriptions trimmed), fetched 2026-11-16.
+offlineTest("normalizeFreehire maps fields, annual salary and skills", () => {
+  const job = normalizeFreehire(freehire.annual)!;
+  assertEquals(job.source, "freehire");
+  assertEquals(job.external_id, freehire.annual.public_slug);
+  assertEquals(job.apply_url, freehire.annual.url);
+  assertEquals(job.company_name, "Booking.com");
+  assertEquals(job.location, "Grand Rapids");
+  assertEquals([job.salary_min, job.salary_max, job.hourly_min], [105100, 116000, null]);
+  assertEquals([job.employment_type, job.workplace_type, job.is_remote], ["full_time", null, false]);
+  // "powerbi" in freehire's skill tags still maps to the app's Power BI tag.
+  for (const skill of ["Python", "SQL", "Tableau", "Power BI"]) assert(job.required_skills.includes(skill), skill);
+});
+
+offlineTest("normalizeFreehire: junior tag counts as early career without a title keyword", () => {
+  // "Data Analyst I" has no early-career word; freehire's seniority tag does it.
+  assert(normalizeFreehire(freehire.annual) !== null);
+  const mid = { ...freehire.annual, enrichment: { ...freehire.annual.enrichment, seniority: "middle" } };
+  assertEquals(normalizeFreehire(mid), null);
+  assert(normalizeFreehire(mid, { earlyCareerOnly: false }) !== null);
+  // A senior title stays out even when tagged junior.
+  assertEquals(normalizeFreehire({ ...freehire.annual, title: "Senior Data Analyst" }), null);
+});
+
+offlineTest("normalizeFreehire: hourly and period-less salaries", () => {
+  const hourly = normalizeFreehire(freehire.hourly)!;
+  assertEquals([hourly.salary_min, hourly.hourly_min, hourly.hourly_max], [null, 20, 22]);
+  assertEquals([hourly.employment_type, hourly.workplace_type], ["internship", "hybrid"]);
+  const noPeriod = normalizeFreehire(freehire.no_period)!;
+  assertEquals([noPeriod.salary_min, noPeriod.salary_max, noPeriod.hourly_min], [65000, 75000, null]);
+  const eur = { ...freehire.annual, enrichment: { ...freehire.annual.enrichment, salary_currency: "EUR" } };
+  assertEquals([normalizeFreehire(eur)!.salary_min, normalizeFreehire(eur)!.hourly_min], [null, null]);
+});
+
+offlineTest("normalizeFreehire drops closed, non-English and non-US postings", () => {
+  assertEquals(normalizeFreehire({ ...freehire.annual, closed_at: "2026-11-15T00:00:00Z" }), null);
+  assertEquals(normalizeFreehire({ ...freehire.annual, enrichment: { ...freehire.annual.enrichment, posting_language: "de" } }), null);
+  const london = { ...freehire.annual, location: "London", countries: ["gb"] };
+  assertEquals(normalizeFreehire(london), null);
+  assert(normalizeFreehire(london, { usOnly: false }) !== null);
+  assertEquals(normalizeFreehire({ ...freehire.annual, url: undefined }), null);
+});
+
+offlineTest("dedupeJobs prefers the employer board over freehire, freehire over Adzuna", () => {
+  const fh = normalizeFreehire(freehire.annual)!;
+  const board = { ...fh, source: "greenhouse" as const, external_id: "booking:1" };
+  const adzuna = { ...fh, source: "adzuna" as const, external_id: "az-1" };
+  assertEquals(dedupeJobs([fh, board]), [board]);
+  assertEquals(dedupeJobs([adzuna, fh]), [fh]);
+});
+
+offlineTest("fetchFreehire sends US junior/intern facets and pages until the total", async () => {
+  const urls: URL[] = [];
+  const page = (offset: number) =>
+    Array.from({ length: offset === 0 ? 100 : 20 }, (_, i) => ({ ...freehire.annual, public_slug: `job-${offset + i}`, title: `Data Analyst ${offset + i}` }));
+  await withFetch(((input: string | URL | Request) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    urls.push(url);
+    const offset = Number(url.searchParams.get("offset"));
+    return Promise.resolve(json({ data: page(offset), meta: { total: 120, limit: 100, offset } }));
+  }) as typeof fetch, async () => {
+    const jobs = await fetchFreehire({ keywords: ["data analyst", "data engineer"] });
+    assertEquals(jobs.length, 120);
+  });
+  assertEquals(urls.length, 2);
+  const first = urls[0];
+  assertEquals(first.pathname, "/api/v1/agent/jobs/search");
+  assertEquals(first.searchParams.get("q"), "data analyst OR data engineer");
+  assertEquals(first.searchParams.getAll("countries"), ["us"]);
+  assertEquals(first.searchParams.getAll("seniority"), ["intern", "junior"]);
+  assertEquals(first.searchParams.get("description_format"), "text");
+  assertEquals(urls[1].searchParams.get("offset"), "100");
+});
+
+offlineTest("fetchFreehire splits more than 5 keywords across requests", async () => {
+  const queries: string[] = [];
+  await withFetch(((input: string | URL | Request) => {
+    queries.push(new URL(String(input)).searchParams.get("q")!);
+    return Promise.resolve(json({ data: [], meta: { total: 0 } }));
+  }) as typeof fetch, async () => {
+    assertEquals(await fetchFreehire({ keywords: ["a", "b", "c", "d", "e", "f OR g"] }), []);
+  });
+  assertEquals(queries, ["a OR b OR c OR d OR e", "f g"]);
 });
