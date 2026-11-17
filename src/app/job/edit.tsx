@@ -81,8 +81,13 @@ export default function EditJobScreen() {
     if (!id) return;
     let cancelled = false;
     getJob(id)
-      // job_function and sponsors_visa are generated columns; writing them fails.
-      .then(({ id: _id, recruiter_id: _r, created_at: _c, job_function: _f, sponsors_visa: _v, ...rest }) => {
+      // job_function and sponsors_visa are generated columns (writing them fails);
+      // hourly and estimated pay are filled by the database, not this form.
+      .then(({
+        id: _id, recruiter_id: _r, created_at: _c, job_function: _f, sponsors_visa: _v,
+        hourly_min: _hn, hourly_max: _hx, est_pay_min: _en, est_pay_max: _ex, est_pay_period: _ep, est_pay_source: _es,
+        ...rest
+      }) => {
         if (!cancelled) setForm(rest);
       })
       .catch((e: Error) => {

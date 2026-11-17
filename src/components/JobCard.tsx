@@ -4,7 +4,7 @@ import { ScrollView } from 'react-native-gesture-handler';
 
 import { SwipeBackground } from '@/components/SwipeBackground';
 import { CompanyLogo, Tag } from '@/components/ui';
-import { formatSalaryRange, sourceLabel } from '@/lib/format';
+import { formatPay, sourceLabel } from '@/lib/format';
 import { employmentTypeLabel, workplaceTypeLabel } from '@/lib/jobLabels';
 import { explainMatch, summarizeMatch } from '@/lib/matchReasons';
 import type { Profile, RecommendedJob } from '@/lib/types';
@@ -62,7 +62,7 @@ export function JobCardFront({ job, me }: Props) {
               .filter(Boolean).join(' · ')}
           </Text>
         </View>
-        <Text className="mt-4 text-2xl font-bold text-white">{formatSalaryRange(job.salary_min, job.salary_max)}</Text>
+        <PayLine job={job} />
         {summary ? (
           <View className="mt-3 flex-row items-center">
             <Sparkles size={14} color="#DDD6FE" />
@@ -177,6 +177,16 @@ function WhyThisMatch({
         </>
       ) : null}
       {salaryText ? <Text className="mt-1 text-sm text-gray-700">{salaryText}</Text> : null}
+    </View>
+  );
+}
+
+function PayLine({ job }: { job: RecommendedJob }) {
+  const pay = formatPay(job);
+  return (
+    <View className="mt-4">
+      <Text className={pay.estimated ? 'text-xl font-semibold text-purple-100' : 'text-2xl font-bold text-white'}>{pay.text}</Text>
+      {pay.note ? <Text className="mt-0.5 text-xs text-purple-200">{pay.note}</Text> : null}
     </View>
   );
 }

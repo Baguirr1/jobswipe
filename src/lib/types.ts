@@ -26,8 +26,17 @@ export interface Job {
   description: string;
   location: string | null;
   is_remote: boolean;
+  /** Stated annual pay (job board, recruiter, or read from the description). */
   salary_min: number | null;
   salary_max: number | null;
+  /** Stated hourly pay; monthly stipends are converted to hourly. */
+  hourly_min: number | null;
+  hourly_max: number | null;
+  /** Only when no pay is stated: a BLS-based or Adzuna estimate. Read-only. */
+  est_pay_min: number | null;
+  est_pay_max: number | null;
+  est_pay_period: 'year' | 'hour' | null;
+  est_pay_source: 'adzuna' | 'bls' | null;
   required_skills: string[];
   is_active: boolean;
   created_at: string;
@@ -76,6 +85,12 @@ export interface SavedJob {
     | 'required_skills'
     | 'salary_min'
     | 'salary_max'
+    | 'hourly_min'
+    | 'hourly_max'
+    | 'est_pay_min'
+    | 'est_pay_max'
+    | 'est_pay_period'
+    | 'est_pay_source'
   >;
 }
 
@@ -90,6 +105,8 @@ export interface JobFilters {
   sponsorship: 'open' | 'offered' | null;
   /** Hides jobs without a listed salary when set. */
   minSalary: number | null;
+  /** Let estimated pay count for minimum salary, "salary listed" and the pay sort. */
+  includeEstimates: boolean;
   location: string;
   keyword: string;
   postedWithinDays: 1 | 7 | 30 | null;

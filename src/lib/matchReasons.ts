@@ -1,3 +1,4 @@
+import { statedAnnualPay, type PayFields } from './format';
 import type { Job, Profile } from './types';
 
 export type SalaryFit = 'fits' | 'below' | 'unknown';
@@ -17,7 +18,7 @@ type Me = Pick<Profile, 'skills' | 'target_salary_min' | 'target_salary_max'> | 
  * comes from embedding similarity; these are the facts a user can verify.
  */
 export function explainMatch(
-  job: Pick<Job, 'required_skills' | 'salary_min' | 'salary_max'>,
+  job: Pick<Job, 'required_skills'> & Partial<PayFields>,
   me: Me,
 ): MatchReasons {
   const mine = new Set((me?.skills ?? []).map((s) => s.toLowerCase()));
@@ -29,8 +30,9 @@ export function explainMatch(
   return { have, missing, salary: salaryFit(job, me) };
 }
 
-function salaryFit(job: Pick<Job, 'salary_min' | 'salary_max'>, me: Me): SalaryFit {
-  const jobTop = job.salary_max ?? job.salary_min;
+// Stated pay only (hourly annualized); an estimate isn't a reason to trust a fit.
+function salaryFit(job: Partial<PayFields>, me: Me): SalaryFit {
+  const jobTop = statedAnnualPay(job);
   const myFloor = me?.target_salary_min ?? null;
   if (jobTop == null || myFloor == null) return 'unknown';
   return jobTop >= myFloor ? 'fits' : 'below';
