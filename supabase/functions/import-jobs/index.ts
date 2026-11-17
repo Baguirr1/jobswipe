@@ -12,7 +12,9 @@
 //            are configured). Also available: "greenhouse", "lever", "ashby",
 //            "smartrecruiters", "recruitee", "personio" (employer job boards;
 //            internships / entry-level / part-time roles in the US or remote)
-//            and "usajobs" (needs USAJOBS_API_KEY + USAJOBS_EMAIL secrets).
+//            "usajobs" (needs USAJOBS_API_KEY + USAJOBS_EMAIL secrets) and
+//            "freehire" (freehire.me aggregator, no key; intern / junior US
+//            roles matching `keywords`).
 //            Pull employer boards in their own scheduled runs: fetching all of
 //            them in one call can exceed the Edge Function time limit.
 //   companies  override board tokens per source, e.g. {"greenhouse": ["stripe"]}
@@ -21,6 +23,8 @@
 //   what     search terms for Adzuna  (default: ADZUNA_WHAT secret, or DEFAULT_WHAT)
 //   where    Adzuna location filter   (default: ADZUNA_WHERE secret, or nationwide)
 //   country  Adzuna country code      (default: ADZUNA_COUNTRY secret, or "us")
+//   keywords search terms for freehire (default: FREEHIRE_KEYWORDS secret, or
+//            data analyst / engineer / scientist, analytics engineer, BI)
 //   embed_only  true: skip fetching, just embed jobs that still need it
 //   embed_limit how many jobs to embed this run (default 5, max 8)
 //
@@ -41,6 +45,7 @@ import {
   fetchAdzuna,
   fetchArbeitnow,
   fetchAshby,
+  fetchFreehire,
   fetchGreenhouse,
   fetchLever,
   fetchPersonio,
@@ -87,6 +92,8 @@ interface Body {
   what?: string[] | string;
   where?: string;
   country?: string;
+  /** freehire search terms. */
+  keywords?: string[] | string;
   embed_only?: boolean;
   embed_limit?: number;
   companies?: Partial<Record<AtsSource, string[]>>;
@@ -129,6 +136,7 @@ Deno.serve(async (req) => {
     ...legacy,
     ...ATS_SOURCES,
     ...(usajobsKey && usajobsEmail ? (['usajobs'] as JobSource[]) : []),
+    'freehire',
   ];
   // The default stays the original feeds, so the existing daily cron is unchanged.
   const sources = body.embed_only
@@ -207,6 +215,14 @@ Deno.serve(async (req) => {
       fetched.push(...(await fetchUsaJobs({ apiKey: usajobsKey!, userAgentEmail: usajobsEmail! })));
     } catch (e) {
       errors.push(`usajobs: ${(e as Error).message}`);
+    }
+  }
+  if (sources.includes('freehire')) {
+    try {
+      const keywords = toList(body.keywords) ?? toList(Deno.env.get('FREEHIRE_KEYWORDS')) ?? undefined;
+      fetched.push(...(await fetchFreehire({ keywords })));
+    } catch (e) {
+      errors.push(`freehire: ${(e as Error).message}`);
     }
   }
 

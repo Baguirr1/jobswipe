@@ -17,7 +17,8 @@ declare
     array['import-lever-3-daily',          '40', '{"sources":["lever"],"batch":"3/3"}'],
     array['import-smartrecruiters-1-daily','45', '{"sources":["smartrecruiters"],"batch":"1/2"}'],
     array['import-smartrecruiters-2-daily','50', '{"sources":["smartrecruiters"],"batch":"2/2"}'],
-    array['import-recruitee-personio-daily','55', '{"sources":["recruitee","personio"]}']
+    array['import-recruitee-personio-daily','55', '{"sources":["recruitee","personio"]}'],
+    array['import-freehire-daily',         '5',  '{"sources":["freehire"]}']
   ];
   r text[];
 begin

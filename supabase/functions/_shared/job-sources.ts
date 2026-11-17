@@ -5,10 +5,12 @@
 // Terms we follow:
 // - Adzuna: show "Jobs by Adzuna" attribution and send users to redirect_url.
 // - Arbeitnow: link back to the listing (apply_url) and credit the source.
+// - freehire.me: public, keyless aggregator API; link to the original posting
+//   (its url, tagged utm_source=freehire.me) and credit freehire on the card.
 // Remotive's public API is intentionally not used: its terms forbid showing
 // listings behind a sign-up, which JobSwipe requires.
 
-export type JobSource = 'adzuna' | 'arbeitnow' | 'greenhouse' | 'lever' | 'ashby' | 'smartrecruiters' | 'recruitee' | 'personio' | 'usajobs';
+export type JobSource = 'adzuna' | 'arbeitnow' | 'greenhouse' | 'lever' | 'ashby' | 'smartrecruiters' | 'recruitee' | 'personio' | 'usajobs' | 'freehire';
 
 export interface ImportedJob {
   source: JobSource;
@@ -296,7 +298,8 @@ export function dedupeJobs(jobs: ImportedJob[]): ImportedJob[] {
     seen.add(key);
     return true;
   });
-  const priority: JobSource[] = ['greenhouse', 'lever', 'ashby', 'smartrecruiters', 'recruitee', 'personio', 'usajobs', 'arbeitnow', 'adzuna'];
+  // freehire aggregates employer boards, so a direct copy from the board wins.
+  const priority: JobSource[] = ['greenhouse', 'lever', 'ashby', 'smartrecruiters', 'recruitee', 'personio', 'usajobs', 'freehire', 'arbeitnow', 'adzuna'];
   const winners = new Map<string, ImportedJob>();
   for (const job of unique) {
     const key = jobFingerprint(job);
@@ -698,6 +701,88 @@ export async function fetchUsaJobs(opts: UsaJobsOptions): Promise<ImportedJob[]>
         for (const row of rows) add(jobs, normalizeUsaJobs(row, hiringPath));
         if (!rows.length || (result?.SearchResultCountAll != null ? page * 250 >= Number(result.SearchResultCountAll) : rows.length < 250)) break;
       }
+    }
+  }
+  return dedupeJobs(jobs);
+}
+
+// ---------- freehire.me ----------
+// Aggregator of ~50 ATS platforms behind one public JSON API (no key). The
+// /agent/ search endpoint returns full descriptions, so one request per page.
+// Seniority, employment type and salary come from freehire's own enrichment.
+export interface FreehireOptions extends AtsOptions {
+  /** Search terms; sent 5 per request (the API's OR limit). */
+  keywords?: string[];
+  /** Lowercase ISO-3166 alpha-2 codes. Default ['us'] unless usOnly is false. */
+  countries?: string[];
+  postedWithinDays?: number;
+  /** Pages of 100 per request. Default 3, max 10. */
+  pages?: number;
+  /** Self-hosted instance; default https://freehire.me. */
+  baseUrl?: string;
+}
+export interface FreehireResult {
+  public_slug: string; url?: string; title?: string; company?: string; location?: string | null;
+  description?: string; countries?: string[]; skills?: string[]; work_mode?: string | null; closed_at?: string | null;
+  enrichment?: {
+    seniority?: string | null; employment_type?: string | null; posting_language?: string | null;
+    salary_min?: number | null; salary_max?: number | null; salary_currency?: string | null; salary_period?: string | null;
+  } | null;
+}
+export const FREEHIRE_DEFAULT_KEYWORDS = ['data analyst', 'data engineer', 'data scientist', 'analytics engineer', 'business intelligence'];
+const FREEHIRE_PAGE_SIZE = 100;
+
+export function normalizeFreehire(r: FreehireResult, opts: AtsOptions = {}): ImportedJob | null {
+  if (r.closed_at) return null;
+  const e = r.enrichment ?? {};
+  if (e.posting_language && e.posting_language !== 'en') return null;
+  const title = htmlToText(r.title ?? '');
+  const location = r.location?.trim() || null;
+  const workplace = toWorkplaceType(r.work_mode);
+  const remote = workplace === 'remote' || /\bremote\b/i.test(`${location ?? ''} ${title}`);
+  const countries = r.countries ?? [];
+  const country = countries.includes('us') ? 'us' : countries[0];
+  // freehire's seniority tag ("junior", "intern") is the early-career signal:
+  // titles like "Data Analyst I" carry no keyword the title check would see.
+  if (!eligible(title, `${e.seniority ?? ''} ${e.employment_type ?? ''}`, location, remote, country, opts)) return null;
+
+  const usd = !e.salary_currency || /^usd$/i.test(e.salary_currency);
+  const period = e.salary_period ?? null;
+  // A missing period is common; the annual/hourly normalizers' ranges tell them apart.
+  const salary = usd && (period == null || annual(period)) ? normalizeSalary(e.salary_min, e.salary_max) : [null, null] as [null, null];
+  const wage = usd && (period == null || hourly(period)) ? normalizeHourly(e.salary_min, e.salary_max) : [null, null] as [null, null];
+  const skillHints = (r.skills ?? []).map(s => s.replace(/-/g, ' ')).join(', ');
+  const job = makeJob('freehire', '', r.public_slug, title, r.url, htmlToText(r.description ?? ''), location, remote,
+    r.company?.trim() || 'Unknown company', salary);
+  if (!job) return null;
+  job.external_id = r.public_slug;
+  job.required_skills = extractSkills(`${title}\n${skillHints}\n${job.description}`);
+  return withHourly(withTypes(job, toEmploymentType(e.employment_type), workplace), wage);
+}
+
+export async function fetchFreehire(opts: FreehireOptions = {}): Promise<ImportedJob[]> {
+  const base = (opts.baseUrl ?? 'https://freehire.me').replace(/\/+$/, '');
+  const keywords = (opts.keywords?.length ? opts.keywords : FREEHIRE_DEFAULT_KEYWORDS)
+    // A literal "OR" inside a term would add alternatives past the API's limit of 5.
+    .map(k => k.replace(/\bOR\b/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const countries = opts.countries ?? (opts.usOnly === false ? [] : ['us']);
+  const pages = Math.min(10, Math.max(1, Math.floor(opts.pages ?? 3)));
+  const jobs: ImportedJob[] = [];
+  for (let i = 0; i < keywords.length; i += 5) {
+    const q = keywords.slice(i, i + 5).join(' OR ');
+    for (let page = 0; page < pages; page++) {
+      const params = new URLSearchParams({
+        q, limit: String(FREEHIRE_PAGE_SIZE), offset: String(page * FREEHIRE_PAGE_SIZE),
+        description_format: 'text', posted_within_days: String(opts.postedWithinDays ?? 30),
+      });
+      for (const c of countries) params.append('countries', c.toLowerCase());
+      if (opts.earlyCareerOnly !== false) for (const s of ['intern', 'junior']) params.append('seniority', s);
+      const body = await fetchJson<{ data?: FreehireResult[]; meta?: { total?: number } }>(
+        `${base}/api/v1/agent/jobs/search?${params}`, { provider: 'freehire', company: 'search', timeoutMs: 30000 });
+      const rows = body.data ?? [];
+      for (const row of rows) add(jobs, normalizeFreehire(row, opts));
+      const total = body.meta?.total;
+      if (rows.length < FREEHIRE_PAGE_SIZE || (total != null && (page + 1) * FREEHIRE_PAGE_SIZE >= total)) break;
     }
   }
   return dedupeJobs(jobs);

@@ -1,0 +1,109 @@
+{
+  "hourly": {
+    "public_slug": "data-analyst-aston-carter-e7o3f5it",
+    "source": "phenom",
+    "url": "https://careers.astoncarter.com/us/en/job/ASCAUSJP006411150ENUS?utm_source=freehire.me",
+    "title": "Data Analyst",
+    "company": "Aston Carter",
+    "location": "Tampa, Florida",
+    "description": "*Job Title: Data Analyst (Master Data)* *Job Description*\n\nThis entry-level Data Analyst position focuses on master data management and offers the opportunity to work extensively with large data sets in a professional, highly visible department. The role centers on creating and maintaining master data records in SAP, supporting core business areas such as finance, supply chain, and materials. This",
+    "countries": [
+      "us"
+    ],
+    "skills": [
+      "ai",
+      "business-intelligence",
+      "data-quality",
+      "master-data-management",
+      "sap"
+    ],
+    "work_mode": "hybrid",
+    "closed_at": null,
+    "enrichment": {
+      "seniority": "junior",
+      "employment_type": "internship",
+      "posting_language": "en",
+      "salary_min": 20,
+      "salary_max": 22,
+      "salary_currency": "USD",
+      "salary_period": "hour"
+    }
+  },
+  "annual": {
+    "public_slug": "data-analyst-i-grand-rapids-mi-booking-com-polfyk2j",
+    "source": "jibe",
+    "url": "https://jobs.booking.com/booking/jobs/30535?lang=en-us&utm_source=freehire.me",
+    "title": "Data Analyst I - Grand Rapids, MI",
+    "company": "Booking.com",
+    "location": "Grand Rapids",
+    "description": "At Booking.com, we want to empower everyone to experience the world. Through our products, partners, and people is how we do it. There's a whole planet of possibilities out there, and we bring it all together, in one place. Booking.com (USA), Inc, one of the support companies in the United States, is seeking a full time *Data Analyst I in our Grand Rapids, Michigan Office*.\n\nData Analysts I work o",
+    "countries": [
+      "us"
+    ],
+    "skills": [
+      "ab-testing",
+      "analytics",
+      "data-analytics",
+      "data-quality",
+      "data-visualization",
+      "looker-studio",
+      "machine-learning",
+      "mixpanel",
+      "networking",
+      "powerbi",
+      "pyspark",
+      "python",
+      "sql",
+      "tableau"
+    ],
+    "work_mode": null,
+    "closed_at": null,
+    "enrichment": {
+      "seniority": "junior",
+      "employment_type": "full_time",
+      "posting_language": "en",
+      "salary_min": 105100,
+      "salary_max": 116000,
+      "salary_currency": "USD",
+      "salary_period": "year"
+    }
+  },
+  "no_period": {
+    "public_slug": "junior-data-analyst-tidalwaveautospa-jblj3snh",
+    "source": "workday",
+    "url": "https://tidalwaveautospa.wd1.myworkdayjobs.com/TWAS/job/Thomaston-GA/Junior-Data-Analyst_R11470?utm_source=freehire.me",
+    "title": "Junior Data Analyst",
+    "company": "tidalwaveautospa",
+    "location": "Thomaston, GA",
+    "description": "Compensation: $65,000–$75,000\n\n-------------------\n*Position Summary:*\n-------------------\n\nTidal Wave Auto Spa is seeking a motivated, detail-oriented Junior Data Analyst to support reporting, data analysis, and business intelligence initiatives. This role helps maintain accurate data, develop reports, and provide useful insights to business stakeholders. The ideal candidate has foundational anal",
+    "countries": [
+      "us"
+    ],
+    "skills": [
+      "automation",
+      "business-intelligence",
+      "cloud",
+      "data-modeling",
+      "data-visualization",
+      "data-warehousing",
+      "elt",
+      "etl",
+      "powerbi",
+      "python",
+      "rdbms",
+      "snowflake",
+      "sql",
+      "tableau"
+    ],
+    "work_mode": null,
+    "closed_at": null,
+    "enrichment": {
+      "seniority": "junior",
+      "employment_type": "full_time",
+      "posting_language": "en",
+      "salary_min": 65000,
+      "salary_max": 75000,
+      "salary_currency": "USD"
+    }
+  }
+}

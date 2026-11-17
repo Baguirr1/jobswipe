@@ -1,7 +1,7 @@
 -- Stated pay parsed from descriptions, BLS/Adzuna estimates, and the feed's
 -- salary filters over hourly and estimated pay.
 begin;
-select plan(48);
+select plan(49);
 select tests.seed_fixtures();
 
 -- ---------------------------------------------------------------------------
@@ -59,6 +59,8 @@ select is(pg_temp.est('Software Engineer', 'full_time', 'Remote', 'arbeitnow'), 
 select is(pg_temp.est('Barista', 'part_time', 'Remote'), '', 'no estimate for unclassified roles');
 select is(pg_temp.est('Software Engineer', 'full_time', 'Pimmit, Fairfax County', 'adzuna'), '105000/172000/year',
   'US-only sources fall back to national pay when the state is unknown');
+select is(pg_temp.est('Software Engineer', 'full_time', 'Grand Rapids', 'freehire'), '105000/172000/year',
+  'freehire (queried US-only) also falls back to national pay');
 select is(public.classify_job_function('Quantitative Researcher Intern'), 'data', 'function: quant roles are data');
 select is(public.classify_job_function('Hardware Test Co-op'), 'engineering', 'function: hardware roles are engineering');
 select is(public.classify_job_function('UX Researcher'), 'design', 'function: UX research is design');
