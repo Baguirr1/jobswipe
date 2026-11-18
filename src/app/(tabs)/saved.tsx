@@ -11,6 +11,7 @@ import {
 import { useCallback, useRef, useState } from 'react';
 import { FlatList, Linking, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 
+import { colForJob, describeRpp, SavedInsights } from '@/components/SavedInsights';
 import { SectionHero } from '@/components/SectionHero';
 import { Button, CompanyLogo, Tag } from '@/components/ui';
 import { getSavedJobs, removeSavedJob, setSavedJobNote, setSavedJobStage } from '@/lib/api';
@@ -170,6 +171,7 @@ export default function SavedJobsScreen() {
               title="Application tracker"
               subtitle={pipeline || 'Save roles you love, then track every application from here.'}
             />
+            <SavedInsights saved={saved} profile={profile} />
             <View className="mb-5 flex-row rounded-2xl bg-brand-light p-1.5">
               <SegmentButton label={`To apply (${counts.todo})`} selected={segment === 'todo'} onPress={() => setSegment('todo')} />
               <View className="w-1.5" />
@@ -252,6 +254,7 @@ function SavedJobRow({
   const { job } = item;
   const where = job.is_remote ? 'Remote' : job.location;
   const pay = formatPay(job);
+  const col = colForJob(job);
   const stage = stageInfo(item.stage);
 
   const status =
@@ -291,6 +294,12 @@ function SavedJobRow({
       </Pressable>
 
       <Text className={`mt-4 text-lg ${pay.estimated ? 'font-semibold text-gray-600' : 'font-bold text-gray-900'}`}>{pay.text}</Text>
+      {col ? (
+        <Text className="mt-0.5 text-xs text-gray-500">
+          ≈ ${Math.round(col.adjusted / 1000)}k in US-average dollars · {col.state} {describeRpp(col.rpp)}
+          {col.noWageTax ? ' · no state income tax' : ''}
+        </Text>
+      ) : null}
       {expanded ? (
         <View className="mt-3 border-t border-purple-50 pt-3">
           {job.required_skills.length ? (
