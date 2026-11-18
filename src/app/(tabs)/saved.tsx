@@ -11,6 +11,7 @@ import {
 import { useCallback, useRef, useState } from 'react';
 import { FlatList, Linking, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 
+import { JobDescription } from '@/components/JobDescription';
 import { colForJob, describeRpp, SavedInsights } from '@/components/SavedInsights';
 import { SectionHero } from '@/components/SectionHero';
 import { Button, CompanyLogo, Tag } from '@/components/ui';
@@ -309,7 +310,7 @@ function SavedJobRow({
               ))}
             </View>
           ) : null}
-          <Text className="text-sm leading-5 text-gray-700">{job.description || 'No description provided.'}</Text>
+          <JobDescription text={job.description} compact />
         </View>
       ) : null}
 

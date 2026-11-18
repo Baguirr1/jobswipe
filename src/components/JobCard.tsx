@@ -2,6 +2,7 @@ import { ExternalLink, MapPin, RotateCw, Sparkles, Zap } from 'lucide-react-nati
 import { Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
+import { JobDescription } from '@/components/JobDescription';
 import { SwipeBackground } from '@/components/SwipeBackground';
 import { CompanyLogo, Tag } from '@/components/ui';
 import { formatPay, sourceLabel } from '@/lib/format';
@@ -110,11 +111,9 @@ export function JobCardBack({ job, me }: Props) {
         <Text className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
           About the role
         </Text>
-        <Text className="text-base leading-6 text-gray-700">
-          {job.description || 'No description provided.'}
-        </Text>
+        <JobDescription text={job.description} />
         {attribution ? (
-          <Text className="pb-6 text-sm text-gray-500">
+          <Text className="pb-6 pt-4 text-sm text-gray-500">
             {attribution}. Swipe right to save it, then apply from the Saved tab.
           </Text>
         ) : (
