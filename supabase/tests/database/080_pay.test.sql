@@ -1,7 +1,7 @@
 -- Stated pay parsed from descriptions, BLS/Adzuna estimates, and the feed's
 -- salary filters over hourly and estimated pay.
 begin;
-select plan(49);
+select plan(55);
 select tests.seed_fixtures();
 
 -- ---------------------------------------------------------------------------
@@ -61,6 +61,14 @@ select is(pg_temp.est('Software Engineer', 'full_time', 'Pimmit, Fairfax County'
   'US-only sources fall back to national pay when the state is unknown');
 select is(pg_temp.est('Software Engineer', 'full_time', 'Grand Rapids', 'freehire'), '105000/172000/year',
   'freehire (queried US-only) also falls back to national pay');
+select is(pg_temp.est('Junior Data Engineer', 'full_time', 'Poland', 'freehire'), '',
+  'explicit country overrides the Freehire source fallback');
+select is(pg_temp.est('Software Engineer', 'full_time', 'Remote (Canada)', 'adzuna'), '',
+  'remote work and Adzuna source do not imply US location');
+select is(pg_temp.est('Software Engineer', 'full_time', 'Barcelona, CT, Spain'), '',
+  'explicit foreign country overrides a US state abbreviation');
+select ok(pg_temp.est('Software Engineer', 'full_time', 'New Mexico') <> '',
+  'New Mexico remains eligible for US estimates');
 select is(public.classify_job_function('Quantitative Researcher Intern'), 'data', 'function: quant roles are data');
 select is(public.classify_job_function('Hardware Test Co-op'), 'engineering', 'function: hardware roles are engineering');
 select is(public.classify_job_function('UX Researcher'), 'design', 'function: UX research is design');
@@ -99,6 +107,12 @@ select is((select concat_ws('/', est_pay_min, est_pay_source) from public.jobs w
   '111000.00/adzuna', 'Adzuna''s own prediction is kept for Adzuna jobs');
 select is((select est_pay_source from public.jobs where id = 'f0000000-0000-4000-8000-000000000004'),
   'bls', 'other jobs can''t pass off an estimate as Adzuna''s');
+insert into public.jobs (id, recruiter_id, title, company_name, location, source, external_id, apply_url)
+values ('f0000000-0000-4000-8000-000000000005', 'a1000000-0000-4000-8000-000000000001',
+  'Junior Data Engineer', 'N-iX', 'Poland', 'freehire', 'test-poland', 'https://example.com/poland');
+select is((select concat_ws('/', est_pay_min, est_pay_max, est_pay_period, est_pay_source) from public.jobs
+           where id = 'f0000000-0000-4000-8000-000000000005'),
+  '', 'the pay trigger stores no BLS estimate for Poland');
 
 -- ---------------------------------------------------------------------------
 -- Feed: c2 sees A ($80k), f1 ($36/hr = $74,880/yr), f2/f3/f4 (estimates only)
@@ -119,6 +133,9 @@ select is((select count(*) from public.get_recommended_jobs_for_candidate(
 select is((select id::text from public.get_recommended_jobs_for_candidate(
   'c2000000-0000-4000-8000-000000000002', p_sort => 'salary') limit 1),
   'b0000000-0000-4000-8000-00000000000a', 'salary sort ranks stated pay; estimates excluded by default');
+select is((select id::text from public.get_recommended_jobs_for_candidate(
+  'c2000000-0000-4000-8000-000000000002', p_sort => 'salary', p_include_estimates => true) offset 5 limit 1),
+  'f0000000-0000-4000-8000-000000000005', 'salary sort puts the job without pay after jobs with pay');
 
 select * from finish();
 rollback;

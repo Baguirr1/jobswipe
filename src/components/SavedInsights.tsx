@@ -3,7 +3,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { adjustForCostOfLiving, NO_WAGE_TAX_STATES, RPP_YEAR, type ColAdjusted } from '@/lib/costOfLiving';
-import { statedAnnualPay, type PayFields } from '@/lib/format';
+import { canUsePayEstimate, statedAnnualPay, type PayFields } from '@/lib/format';
 import type { Profile, SavedJob } from '@/lib/types';
 
 /** Applications with no update for this long are worth a follow-up. */
@@ -16,6 +16,7 @@ const usdK = (n: number) => `$${Math.round(n / 1000)}k`;
 export function annualPayOf(job: Partial<PayFields>): { amount: number; estimated: boolean } | null {
   const stated = statedAnnualPay(job);
   if (stated != null) return { amount: stated, estimated: false };
+  if (!canUsePayEstimate(job)) return null;
   const lo = job.est_pay_min ?? job.est_pay_max;
   const hi = job.est_pay_max ?? job.est_pay_min;
   if (lo == null || hi == null) return null;
