@@ -13,7 +13,6 @@ import { FlatList, Linking, Pressable, RefreshControl, Text, TextInput, View } f
 
 import { JobDescription } from '@/components/JobDescription';
 import { colForJob, describeRpp, SavedInsights } from '@/components/SavedInsights';
-import { SectionHero } from '@/components/SectionHero';
 import { Button, CompanyLogo, Tag } from '@/components/ui';
 import { getSavedJobs, removeSavedJob, setSavedJobNote, setSavedJobStage } from '@/lib/api';
 import { formatPay, sourceLabel, timeAgo } from '@/lib/format';
@@ -22,6 +21,12 @@ import type { ApplicationStage, SavedJob } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
 
 type Segment = 'todo' | 'active' | 'closed';
+
+/** How long "Removed · Undo" stays up before the removal is sent. */
+const UNDO_MS = 5000;
+/** About eight lines of compact description before "Read more". */
+const DESCRIPTION_PREVIEW_HEIGHT = 168;
+const DESCRIPTION_PREVIEW_CHARS = 400;
 
 const SEGMENT_OF: Record<ApplicationStage, Segment> = {
   saved: 'todo',
@@ -66,6 +71,8 @@ export default function SavedJobsScreen() {
   // Bumped by every load and every change. A load only applies its result if
   // nothing happened since it started, so a slow refresh can't undo a newer edit.
   const version = useRef(0);
+  const pendingRef = useRef<{ item: SavedJob; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const [pending, setPending] = useState<SavedJob | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -74,7 +81,9 @@ export default function SavedJobsScreen() {
     try {
       const rows = await getSavedJobs(profile.id);
       if (started !== version.current) return;
-      setSaved(rows);
+      // A job waiting out its undo window is still on the server; keep it hidden.
+      const hidden = pendingRef.current?.item.job.id;
+      setSaved(hidden ? rows.filter((s) => s.job.id !== hidden) : rows);
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -125,16 +134,49 @@ export default function SavedJobsScreen() {
     }
   };
 
-  const remove = async (item: SavedJob) => {
-    version.current++;
-    setSaved((prev) => prev.filter((s) => s.job.id !== item.job.id));
+  // Removal waits UNDO_MS before reaching the server, so "Undo" is just a
+  // local restore. Only one removal is pending at a time; starting another (or
+  // leaving the screen) commits the previous one right away.
+  const commitRemoval = useCallback(async (item: SavedJob) => {
     try {
       await removeSavedJob(item.job.id);
     } catch (e) {
       setSaved((prev) => (prev.some((s) => s.job.id === item.job.id) ? prev : [item, ...prev]));
       showAlert('Couldn’t remove', (e as Error).message);
     }
+  }, []);
+
+  const flushRemoval = useCallback(() => {
+    const p = pendingRef.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pendingRef.current = null;
+    setPending(null);
+    commitRemoval(p.item);
+  }, [commitRemoval]);
+
+  const remove = (item: SavedJob) => {
+    flushRemoval();
+    version.current++;
+    setSaved((prev) => prev.filter((s) => s.job.id !== item.job.id));
+    setExpanded((cur) => (cur === item.job.id ? null : cur));
+    const timer = setTimeout(flushRemoval, UNDO_MS);
+    pendingRef.current = { item, timer };
+    setPending(item);
   };
+
+  const undoRemoval = () => {
+    const p = pendingRef.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pendingRef.current = null;
+    setPending(null);
+    version.current++;
+    setSaved((prev) => (prev.some((s) => s.job.id === p.item.job.id) ? prev : [p.item, ...prev]));
+  };
+
+  // Commit a pending removal when the screen loses focus or unmounts.
+  useFocusEffect(useCallback(() => flushRemoval, [flushRemoval]));
 
   const openApply = async (url: string) => {
     try {
@@ -167,11 +209,12 @@ export default function SavedJobsScreen() {
         ItemSeparatorComponent={() => <View className="h-4" />}
         ListHeaderComponent={
           <>
-            <SectionHero
-              eyebrow="YOUR JOB SEARCH"
-              title="Application tracker"
-              subtitle={pipeline || 'Save roles you love, then track every application from here.'}
-            />
+            <View className="mb-4">
+              <Text accessibilityRole="header" className="text-xl font-extrabold text-gray-900">Application tracker</Text>
+              <Text className="mt-0.5 text-sm text-gray-500">
+                {pipeline || 'Save roles you love, then track every application here.'}
+              </Text>
+            </View>
             <SavedInsights saved={saved} profile={profile} />
             <View className="mb-5 flex-row rounded-2xl bg-brand-light p-1.5">
               <SegmentButton label={`To apply (${counts.todo})`} selected={segment === 'todo'} onPress={() => setSegment('todo')} />
@@ -212,6 +255,26 @@ export default function SavedJobsScreen() {
           />
         )}
       />
+      {pending ? (
+        <View pointerEvents="box-none" className="absolute bottom-5 left-5 right-5 items-center">
+          <View
+            accessibilityLiveRegion="polite"
+            className="w-full max-w-md flex-row items-center rounded-2xl bg-gray-900 py-1 pl-4 pr-1 shadow-lg"
+          >
+            <Text className="flex-1 text-sm text-white" numberOfLines={1}>
+              Removed {pending.job.title}
+            </Text>
+            <Pressable
+              onPress={undoRemoval}
+              accessibilityRole="button"
+              accessibilityLabel={`Undo removing ${pending.job.title}`}
+              className="min-h-11 justify-center rounded-xl px-4 active:bg-white/10"
+            >
+              <Text className="text-sm font-bold text-purple-300">Undo</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -248,8 +311,11 @@ function SavedJobRow({
   onSaveNote: (note: string) => Promise<boolean>;
   onRemove: () => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [stagesOpen, setStagesOpen] = useState(false);
+  // At most one inline panel (stage picker or "…" menu) is open at a time.
+  const [panel, setPanel] = useState<'stages' | 'menu' | null>(null);
+  const stagesOpen = panel === 'stages';
+  const menuOpen = panel === 'menu';
+  const [fullDescription, setFullDescription] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState(item.note);
   const { job } = item;
@@ -289,7 +355,7 @@ function SavedJobRow({
             {job.company_name}
             {where ? ` · ${where}` : ''}
           </Text>
-          <Text className="text-xs text-gray-400">{status}</Text>
+          <Text className="text-xs text-gray-500">{status}</Text>
         </View>
         {expanded ? <ChevronUp size={18} color="#9CA3AF" /> : <ChevronDown size={18} color="#9CA3AF" />}
       </Pressable>
@@ -310,7 +376,38 @@ function SavedJobRow({
               ))}
             </View>
           ) : null}
-          <JobDescription text={job.description} compact />
+          {/* Long descriptions start clipped so the card's actions stay in reach. */}
+          <View style={fullDescription ? undefined : { maxHeight: DESCRIPTION_PREVIEW_HEIGHT, overflow: 'hidden' }}>
+            <JobDescription text={job.description} compact />
+          </View>
+          <View className="mt-2 flex-row items-center justify-between">
+            {(job.description?.length ?? 0) > DESCRIPTION_PREVIEW_CHARS ? (
+              <Pressable
+                onPress={() => setFullDescription((f) => !f)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: fullDescription }}
+                hitSlop={8}
+                className="min-h-11 justify-center"
+              >
+                <Text className="text-sm font-semibold text-brand">{fullDescription ? 'Show less' : 'Read more'}</Text>
+              </Pressable>
+            ) : (
+              <View />
+            )}
+            <Pressable
+              onPress={() => {
+                setFullDescription(false);
+                onToggleExpand();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Hide details for ${job.title}`}
+              hitSlop={8}
+              className="min-h-11 flex-row items-center justify-center"
+            >
+              <Text className="mr-1 text-sm font-semibold text-gray-600">Hide details</Text>
+              <ChevronUp size={14} color="#4B5563" />
+            </Pressable>
+          </View>
         </View>
       ) : null}
 
@@ -364,15 +461,13 @@ function SavedJobRow({
           </Pressable>
         ) : null}
         <Pressable
-          onPress={() => setStagesOpen(!stagesOpen)}
+          onPress={() => setPanel(stagesOpen ? null : 'stages')}
           accessibilityRole="button"
           accessibilityState={{ expanded: stagesOpen }}
           accessibilityLabel={`Stage: ${stage.label}. Change stage`}
           className={`min-h-12 flex-row items-center rounded-2xl px-4 py-3 ${stage.pill}`}
         >
-          <Text className={`text-sm font-semibold ${stage.text}`}>
-            {item.stage === 'saved' ? 'Set stage' : stage.label}
-          </Text>
+          <Text className={`text-sm font-semibold ${stage.text}`}>{stage.label}</Text>
           <ChevronDown size={14} color="#6B7280" style={{ marginLeft: 4 }} />
         </Pressable>
         {!editingNote && !item.note ? (
@@ -388,11 +483,11 @@ function SavedJobRow({
         ) : null}
         <View className="flex-1" />
         <Pressable
-          onPress={() => setMenuOpen(!menuOpen)}
+          onPress={() => setPanel(menuOpen ? null : 'menu')}
           accessibilityRole="button"
           accessibilityState={{ expanded: menuOpen }}
           accessibilityLabel={`More actions for ${job.title}`}
-          className="h-12 w-12 items-center justify-center rounded-2xl bg-gray-50"
+          className="h-12 w-12 items-center justify-center rounded-2xl bg-gray-100"
         >
           <MoreHorizontal size={20} color="#6B7280" />
         </Pressable>
@@ -406,7 +501,7 @@ function SavedJobRow({
               <Pressable
                 key={s.value}
                 onPress={() => {
-                  setStagesOpen(false);
+                  setPanel(null);
                   onStage(s.value);
                 }}
                 accessibilityRole="radio"
@@ -425,7 +520,7 @@ function SavedJobRow({
           {job.apply_url && item.stage !== 'saved' ? (
             <Pressable
               onPress={() => {
-                setMenuOpen(false);
+                setPanel(null);
                 onApply(job.apply_url!);
               }}
               accessibilityRole="link"
@@ -437,7 +532,7 @@ function SavedJobRow({
           ) : null}
           <Pressable
             onPress={() => {
-              setMenuOpen(false);
+              setPanel(null);
               onRemove();
             }}
             accessibilityRole="button"
