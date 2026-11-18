@@ -15,9 +15,22 @@ function range(min: number | null, max: number | null, fmt: (n: number) => strin
 
 export type PayFields = Pick<
   Job,
-  'salary_min' | 'salary_max' | 'hourly_min' | 'hourly_max' | 'est_pay_min' | 'est_pay_max' | 'est_pay_period' | 'est_pay_source'
+  'location' | 'salary_min' | 'salary_max' | 'hourly_min' | 'hourly_max' | 'est_pay_min' | 'est_pay_max' | 'est_pay_period' | 'est_pay_source'
 >;
 
+// Keep these location markers in sync with public.is_likely_non_us.
+const US_COUNTRY = /\b(?:US|USA|United States)\b|\bU\.S\.(?:A\.)?/i;
+const NON_US_LOCATION = /\b(?:United Kingdom|UK|Canada|Mexico|Poland|Germany|France|Spain|Portugal|Italy|Netherlands|Ireland|Belgium|Switzerland|Austria|Denmark|Norway|Sweden|Finland|Iceland|Czechia|Czech Republic|Slovakia|Romania|Hungary|Bulgaria|Greece|Ukraine|Lithuania|Latvia|Estonia|Serbia|Croatia|Turkey|Israel|United Arab Emirates|Saudi Arabia|Qatar|Egypt|South Africa|Nigeria|Kenya|Morocco|India|Pakistan|Bangladesh|Sri Lanka|Nepal|China|Japan|South Korea|Taiwan|Hong Kong|Singapore|Philippines|Indonesia|Malaysia|Vietnam|Thailand|Australia|New Zealand|Brazil|Argentina|Chile|Colombia|Peru|Costa Rica|Dominican Republic|Europe|EMEA|APAC|LATAM|Latin America|South America|Middle East|Asia|Africa)\b|\bU\.K\./i;
+
+/** Explicit foreign location evidence. A remote flag conveys work mode only. */
+export function isLikelyNonUS(location: string | null | undefined): boolean {
+  const text = location ?? '';
+  return !US_COUNTRY.test(text) && NON_US_LOCATION.test(text.replace(/\bNew\s+Mexico\b/gi, ''));
+}
+
+export function canUsePayEstimate(job: Partial<PayFields>): boolean {
+  return job.est_pay_source !== 'bls' || !isLikelyNonUS(job.location);
+}
 export interface PayLabel {
   text: string;
   /** True for an estimate rather than pay the employer stated. */
@@ -33,7 +46,9 @@ export function formatPay(job: Partial<PayFields>): PayLabel {
   const hourly = range(job.hourly_min ?? null, job.hourly_max ?? null, hourlyUsd);
   if (hourly) return { text: `${hourly}/hr`, estimated: false, note: null };
   const isHourly = job.est_pay_period === 'hour';
-  const est = range(job.est_pay_min ?? null, job.est_pay_max ?? null, isHourly ? hourlyUsd : compactUsd);
+  const est = canUsePayEstimate(job)
+    ? range(job.est_pay_min ?? null, job.est_pay_max ?? null, isHourly ? hourlyUsd : compactUsd)
+    : null;
   if (est) {
     return {
       text: `Est. ${est}${isHourly ? '/hr' : ''}`,
