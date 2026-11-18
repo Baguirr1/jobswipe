@@ -47,33 +47,48 @@ export async function updateProfile(userId: string, patch: ProfileUpdate): Promi
 
 // ---------- Candidate feed ----------
 
+export const MATCH_COUNT_CAP = 100;
+
+function recommendedJobsParams(candidateId: string, limit: number, filters?: JobFilters) {
+  return {
+    p_candidate_id: candidateId,
+    p_limit: limit,
+    p_employment_types: filters?.employmentTypes.length ? filters.employmentTypes : null,
+    p_workplace_types: filters?.workplaceTypes.length ? filters.workplaceTypes : null,
+    p_job_functions: filters?.jobFunctions.length ? filters.jobFunctions : null,
+    p_company: filters?.company.trim() || null,
+    p_sponsorship: filters?.sponsorship ?? null,
+    p_include_estimates: filters?.includeEstimates ?? false,
+    p_min_salary: filters?.minSalary ?? null,
+    p_location: filters?.location.trim() || null,
+    p_keyword: filters?.keyword?.trim() || null,
+    p_posted_within_days: filters?.postedWithinDays ?? null,
+    p_level: filters?.level ?? null,
+    p_quick_apply_only: filters?.quickApplyOnly ?? false,
+    p_salary_listed: filters?.salaryListed ?? false,
+    p_skills_match: filters?.skillsMatch ?? false,
+    p_min_match: filters?.minMatch ?? null,
+    p_sort: filters?.sort ?? 'match',
+  };
+}
+
 export async function getRecommendedJobs(
   candidateId: string,
   limit = 20,
   filters?: JobFilters,
 ): Promise<RecommendedJob[]> {
   return unwrap(
-    await supabase.rpc('get_recommended_jobs_for_candidate', {
-      p_candidate_id: candidateId,
-      p_limit: limit,
-      p_employment_types: filters?.employmentTypes.length ? filters.employmentTypes : null,
-      p_workplace_types: filters?.workplaceTypes.length ? filters.workplaceTypes : null,
-      p_job_functions: filters?.jobFunctions.length ? filters.jobFunctions : null,
-      p_company: filters?.company.trim() || null,
-      p_sponsorship: filters?.sponsorship ?? null,
-      p_include_estimates: filters?.includeEstimates ?? false,
-      p_min_salary: filters?.minSalary ?? null,
-      p_location: filters?.location.trim() || null,
-      p_keyword: filters?.keyword?.trim() || null,
-      p_posted_within_days: filters?.postedWithinDays ?? null,
-      p_level: filters?.level ?? null,
-      p_quick_apply_only: filters?.quickApplyOnly ?? false,
-      p_salary_listed: filters?.salaryListed ?? false,
-      p_skills_match: filters?.skillsMatch ?? false,
-      p_min_match: filters?.minMatch ?? null,
-      p_sort: filters?.sort ?? 'match',
-    }),
+    await supabase.rpc(
+      'get_recommended_jobs_for_candidate',
+      recommendedJobsParams(candidateId, limit, filters),
+    ),
   );
+}
+
+/** A count of MATCH_COUNT_CAP represents that many matches or more. */
+export async function countMatchingJobs(candidateId: string, filters: JobFilters): Promise<number> {
+  const jobs = await getRecommendedJobs(candidateId, MATCH_COUNT_CAP, filters);
+  return jobs.length;
 }
 
 /** Undo a recent swipe (refused by the server once it produced a match). */

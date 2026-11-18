@@ -249,6 +249,7 @@ export default function DiscoverScreen() {
       <FilterSheet
         visible={filtersOpen}
         value={filters}
+        candidateId={candidateId}
         onClose={() => setFiltersOpen(false)}
         onApply={(next) => {
           setFiltersOpen(false);
